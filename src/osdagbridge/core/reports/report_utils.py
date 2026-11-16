@@ -113,3 +113,140 @@ def _fig_embed(path, caption, width=r'\textwidth', height=None):
             r'}}')
 
 
+def build_longtable(
+    col_spec: str,
+    caption: str = None,
+    headers: str = None,
+    rows: list = None,
+    continuation_headers: str = None,
+    note: str = None,
+    label: str = None,
+    keep_groups_intact: bool = True,
+    need_clearpage: bool = False,
+) -> str:
+    """
+    Build a robust, multi-page-safe longtable LaTeX environment.
+
+    Guarantees:
+    1. Clean Firsthead & Continuation Separation:
+       Emits \\caption and first-page header inside \\firsthead, followed
+       immediately by an \\endfirsthead marker.
+       Emits continuation headers inside \\endhead so that headers automatically
+       and correctly repeat at the top of every subsequent page without
+       orphaned headers.
+    2. Automatic Row Group Protection (Prevent Awkward Page Breaks):
+       When `rows` is provided as a list of row groups (e.g., per-girder blocks:
+       [[g1_row1, g1_row2, ...], [g2_row1, g2_row2, ...]]), intermediate rows
+       within a group automatically end with `\\*[6pt]` and `\\cline{...}`,
+       which tells LaTeX's page breaker to forbid breaking inside the group.
+       The final row of each group ends with standard `\\[6pt]` and `\\hline`,
+       allowing LaTeX to break strictly between member groups.
+    3. Proper Footnote and Boundary Management:
+       Places any table notes or code references directly below `\\end{longtable}`.
+       Optionally prefixes with `\\clearpage` when requested.
+    4. Flexible Header & Caption Support:
+       Supports standard tables, custom continuation headers, tables without
+       conventional header rows, and uncaptioned tables.
+    5. Full Column Width & Alignment Preservation:
+       Passes through column specifications and content without modifying
+       numerical data, formulas, or formatting.
+
+    Parameters:
+    -----------
+    col_spec : str
+        LaTeX column format specification, e.g. `{|C{2.5cm}|C{3.5cm}|p{4.2cm}|C{1.8cm}|}`.
+    caption : str, optional
+        Table caption string (can include LaTeX formatting like `\\textbf{...}`).
+    headers : str, optional
+        Header row(s) text, e.g. `\\textbf{Col 1} & \\textbf{Col 2} \\\\[6pt]`.
+    rows : list of str or list of list of str, optional
+        Either a flat list of formatted row strings, or a list of row groups
+        (each group being a list of row strings representing one member block).
+    continuation_headers : str, optional
+        Custom header for continuation pages. If None, mirrors `headers`.
+    note : str, optional
+        Footnote / reference note printed below the table (e.g. `Note: IS 800 Cl. 8.4`).
+    label : str, optional
+        LaTeX label for cross-referencing (e.g. `tab:shear_checks`).
+    keep_groups_intact : bool, default True
+        When rows are grouped, whether to enforce non-breaking `\\*` within groups.
+    need_clearpage : bool, default False
+        Whether to precede the table with `\\clearpage`.
+
+    Returns:
+    --------
+    str: Complete, self-contained LaTeX longtable snippet.
+    """
+    rows = rows or []
+    cp_prefix = "\\clearpage\n" if need_clearpage else ""
+
+    # 1. Format Caption and Label
+    caption_block = ""
+    if caption:
+        clean_caption = caption.strip()
+        if clean_caption.endswith(r"\\"):
+            clean_caption = clean_caption[:-2].strip()
+        lbl_tex = f"\\label{{{label}}}\n" if label else ""
+        caption_block = f"\\caption{{{clean_caption}}}\\\\\\hline\n{lbl_tex}"
+    elif label:
+        caption_block = f"\\label{{{label}}}\n"
+
+    # 2. Format Firsthead and Continuation Headers
+    header_block = ""
+    if headers:
+        hdr_text = headers.strip()
+        if not hdr_text.endswith(r"\\") and not hdr_text.endswith(r"[6pt]"):
+            hdr_text += r" \\[6pt]"
+
+        cont_hdr = continuation_headers.strip() if continuation_headers else hdr_text
+        if not cont_hdr.endswith(r"\\") and not cont_hdr.endswith(r"[6pt]"):
+            cont_hdr += r" \\[6pt]"
+
+        header_block = (
+            f"{hdr_text}\n\\hline\n"
+            f"\\endfirsthead\n\\hline\n"
+            f"{cont_hdr}\n\\hline\n"
+            f"\\endhead\n"
+        )
+    else:
+        # Table without conventional header row
+        # Still provide \endfirsthead and \endhead markers to prevent leaks
+        header_block = (
+            f"\\endfirsthead\n"
+            f"\\endhead\n"
+        )
+
+    # 3. Assemble Body Rows
+    body_lines = []
+    if rows and isinstance(rows[0], (list, tuple)):
+        for group in rows:
+            n_in_grp = len(group)
+            for idx, r in enumerate(group):
+                r_str = str(r).rstrip()
+                is_last = (idx == n_in_grp - 1)
+                if keep_groups_intact and not is_last:
+                    if r"\*[6pt]" not in r_str and r"\\[6pt]" in r_str:
+                        r_str = r_str.replace(r"\\[6pt]", r"\\*[6pt]")
+                    elif r"\\*" not in r_str and r"\\" in r_str:
+                        r_str = r_str.replace(r"\\", r"\\*")
+                body_lines.append(r_str)
+            if body_lines and not body_lines[-1].endswith(r"\hline"):
+                body_lines.append(r"\hline")
+    else:
+        for r in rows:
+            body_lines.append(str(r).rstrip())
+
+    body_tex = "\n".join(body_lines)
+    note_tex = f"\n\\noindent\\textit{{{note}}}\n" if note else ""
+
+    tex = (
+        cp_prefix
+        + f"\\begin{{longtable}}{{{col_spec}}}\n"
+        + caption_block
+        + header_block
+        + f"{body_tex}\n"
+        + f"\\end{{longtable}}"
+        + note_tex
+    )
+    return tex
+

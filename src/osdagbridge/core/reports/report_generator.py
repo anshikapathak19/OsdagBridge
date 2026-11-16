@@ -201,10 +201,27 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \setlength{\arrayrulewidth}{0.5pt}
 \setlength{\extrarowheight}{0.6pt}
 
-% Prevent tables from overflowing past the page bottom:
-% if fewer than 5 baseline-skips remain, break to the next page first.
+% Prevent floating tables from starting with less than 5 baselines:
 \BeforeBeginEnvironment{table}{\needspace{5\baselineskip}}
-\BeforeBeginEnvironment{longtable}{\needspace{5\baselineskip}}
+% NOTE: Do NOT use \BeforeBeginEnvironment{longtable}{\needspace{...}} because
+% needspace leaves negative vertical glue that corrupts longtable's \pagetotal,
+% causing phantom continuation headers to emit before the table caption.
+
+% Patch \@cline to preserve \nobreak inside longtable row groups when following \\*
+\makeatletter
+\def\@cline#1-#2\@nil{%
+  \omit \@multicnt #1\advance \@multispan \m@ne
+  \ifnum \@multicnt =\@ne \@firstofone {&\omit }\fi
+  \@multicnt #2\advance \@multicnt -#1\advance \@multispan \@ne
+  \leaders \hrule \@height \arrayrulewidth \hfill
+  \cr
+  \noalign {\nobreak\vskip -\arrayrulewidth }%
+}
+\makeatother
+
+% Declare common Unicode mathematical characters safely for pdflatex
+\DeclareUnicodeCharacter{2264}{\ensuremath{\le}}
+\DeclareUnicodeCharacter{2265}{\ensuremath{\ge}}
 
 \definecolor{osdagGreen}{HTML}{91B014}
 

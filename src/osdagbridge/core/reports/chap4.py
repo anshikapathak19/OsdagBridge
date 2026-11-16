@@ -140,7 +140,7 @@ A grillage model was used for structural analysis. The deck is idealized as a gr
 \end{longtable}
 \endgroup
 
-\vspace{1em}
+\clearpage
 \begin{longtable}{|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|}
 \caption{\textbf{Reactions at Supports}}\\
 \hline
