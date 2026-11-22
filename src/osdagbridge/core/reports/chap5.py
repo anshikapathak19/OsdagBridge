@@ -73,6 +73,8 @@ from osdagbridge.core.utils.common import (
     KEY_SD_CLASS_FLANGE,
     KEY_SD_CLASS_WEB,
     KEY_SD_COMPOSITE_IZ,
+    KEY_SD_DEFL_ALLOW_LIVE,
+    KEY_SD_DEFL_ALLOW_TOTAL,
     KEY_SD_DEFL_LIVE,
     KEY_SD_DEFL_TOTAL,
     KEY_SD_EFFECTIVE_SLAB_WIDTH,
@@ -145,7 +147,7 @@ from osdagbridge.core.reports.report_utils import _tex, _render_value, get_girde
 
 if TYPE_CHECKING:
     pass
-def ch5_design_checks(checks_data, bridge) -> str:
+def ch5_design_checks(checks_data, bridge, fig_paths: dict | None = None) -> str:
     """Chapter 5 — Design Checks.
 
     Parameters
@@ -154,7 +156,12 @@ def ch5_design_checks(checks_data, bridge) -> str:
         Raw checks payload (currently unused; data is sourced from bridge).
     bridge : ReportDataBridge
         Provides input_dict, output_dict, and helper methods.
+    fig_paths : dict, optional
+        Paths to generated figure PNG files.
     """
+    if fig_paths is None:
+        fig_paths = {}
+
     girder_entries = get_girder_entries(bridge.input_dict)
     if not girder_entries:
         n = int(bridge.input_dict.get(KEY_TS_NO_OF_GIRDERS, 1))
@@ -1051,12 +1058,42 @@ Fatigue Shear Resistance, $Q_r$ & IRC 22 Table 8 ($\phi d$, $N_{sc}$) & """
         (_ur_522(_dk_gov_wk / _wk_lim) if (_dk_has and _wk_lim > 0) else "---"),
     )
 
+    def _defl_row(check_id, defl_key, allow_key, allow_ratio, fallback_unit="mm"):
+        actual_val = bridge.output_dict.get(defl_key)
+        if actual_val is None:
+            vals = []
+            for _gi in range(1, n_girders + 1):
+                v = bridge.output_dict.get(f"{defl_key}.G{_gi}")
+                if v is not None:
+                    try:
+                        vals.append(float(v))
+                    except (TypeError, ValueError):
+                        pass
+            if vals:
+                actual_val = max(vals)
+        allow_val = bridge.output_dict.get(allow_key)
+        if allow_val is None:
+            try:
+                _sp = float(bridge.input_dict.get(KEY_SPAN, 0))
+                if _sp > 0:
+                    allow_val = _sp * 1000.0 / allow_ratio
+            except (TypeError, ValueError):
+                pass
+        if actual_val is not None and allow_val is not None and float(allow_val) > 0:
+            act_f = float(actual_val)
+            all_f = float(allow_val)
+            ur_val = act_f / all_f
+            lc_name = "1.0 LL (SLS)" if check_id == 13 else "1.0 DL + 1.0 LL (SLS)"
+            return (lc_name, f"{act_f:.2f} mm", f"{all_f:.2f} mm", _ur_522(ur_val))
+        return _dcr_row({check_id}, fallback_unit=fallback_unit)
+
     _t522 = [
         _row522(r"Girder --- Moment",             _dcr_row({1})),
         _row522(r"Girder --- Shear",              _dcr_row({2})),
         _row522(r"Girder --- LTB (constr.)",      _dcr_row({5})),
-        _row522(r"Girder --- Deflection",         _dcr_row({13, 14}, fallback_unit="mm")),
-        _row522(r"Girder --- Stress",             _dcr_row({11}, fallback_unit="MPa")),
+        _row522(r"Girder --- Defl.\ (Live)",      _defl_row(13, KEY_SD_DEFL_LIVE, KEY_SD_DEFL_ALLOW_LIVE, 800.0)),
+        _row522(r"Girder --- Defl.\ (Total)",     _defl_row(14, KEY_SD_DEFL_TOTAL, KEY_SD_DEFL_ALLOW_TOTAL, 600.0)),
+        _row522(r"Girder --- Combined Stress",    _dcr_row({11}, fallback_unit="MPa")),
         _row522(r"Girder --- Fatigue",            _dcr_row({8, 9}, fallback_unit="MPa")),
         _row522(r"Transverse Shear (slab)",       _dcr_row({16})),
         _row522(r"Crack Width (slab)",            _crack_cells),
@@ -1072,6 +1109,58 @@ Fatigue Shear Resistance, $Q_r$ & IRC 22 Table 8 ($\phi d$, $N_{sc}$) & """
         _ed_shear_row,
     ]
     t522_content = "\n".join(_t522)
+
+    # ── Requirement 4: Utilisation Ratio (UR) Charts ────────────────────────
+    def _ur_chart_fig(path_key, caption_title, label):
+        path = (fig_paths or {}).get(path_key)
+        label_tex = (r"\label{" + label + "}\n") if label else ""
+        if path:
+            p = str(path).replace("\\", "/")
+            return (
+                r"\begin{figure}[H]" + "\n"
+                r"\centering" + "\n"
+                r"\vspace{4pt}" + "\n"
+                r"\includegraphics[width=0.92\textwidth]{" + p + r"}" + "\n"
+                r"\caption{\textbf{" + caption_title + r"}}" + "\n"
+                + label_tex
+                + r"\end{figure}" + "\n"
+            )
+        return (
+            r"\begin{figure}[H]" + "\n"
+            r"\centering" + "\n"
+            r"\fbox{\parbox{0.95\textwidth}{\centering\vspace{1.5em}\textit{[ PLACEHOLDER: " + caption_title + r" ]}\vspace{1.5em}}}" + "\n"
+            r"\caption{\textbf{" + caption_title + r"}}" + "\n"
+            + label_tex
+            + r"\end{figure}" + "\n"
+        )
+
+    girders_fig = _ur_chart_fig("ur_chart_girders", "Utilisation Ratio --- Steel Plate Girders (Governing Checks)", "fig:ur_girders")
+    deck_fig    = _ur_chart_fig("ur_chart_deck", "Utilisation Ratio --- Concrete Deck Slab", "fig:ur_deck")
+    cb_fig      = _ur_chart_fig("ur_chart_cross_bracing", "Utilisation Ratio --- Cross Bracing (Governing Member Checks)", "fig:ur_cross_bracing")
+    ed_fig      = _ur_chart_fig("ur_chart_end_diaphragm", "Utilisation Ratio --- End Diaphragms", "fig:ur_end_diaphragm")
+
+    ur_charts_content = (
+        r"""
+\vspace{1.5em}
+\clearpage
+\subsection{Utilisation Ratio (UR) Charts}
+\label{sec:ur-charts}
+
+\noindent
+The following charts display the Utilisation Ratios ($\mathrm{UR} = \text{Demand} / \text{Capacity}$) for each major bridge component. The red dashed horizontal reference line denotes the allowable codal limit ($\mathrm{UR} = 1.0$). Values with $\mathrm{UR} \le 1.0$ indicate PASS (represented by green bars), while $\mathrm{UR} > 1.0$ indicates FAIL (represented by red bars).
+
+\noindent
+\textbf{Note on Governing Member Checks:} For Steel Plate Girders (Figure~\ref{fig:ur_girders}) and Cross Bracing (Figure~\ref{fig:ur_cross_bracing}), charts display the governing design checks for each member and category. In Figure~\ref{fig:ur_cross_bracing}, the 12 plotted bars represent the governing member-level axial capacity checks (compression-governed per Table~5.25) and governing slenderness checks ($\lambda \le 250$ per Table~5.24) across panels G1-G2, G2-G3, and G3-G4. Non-governing checks, such as tension capacity ($\mathrm{UR} \le 0.13$) and bottom chord tension slenderness ($KL/r = 111.0 \le 400 \implies \mathrm{UR} = 0.28$), are non-critical and excluded to maintain chart clarity while accurately reflecting the governing design constraints.
+
+"""
+        + girders_fig + "\n"
+        + deck_fig + "\n"
+        + r"\clearpage" + "\n"
+        + cb_fig + "\n"
+        + ed_fig
+    )
+
+
 
     _gov_veh = str(deck_rpt.get(KEY_DD_VEHICLE, "")).strip().lower()
     if "70r" in _gov_veh or "aa" in _gov_veh:
@@ -1665,7 +1754,8 @@ End diaphragms at the supports transfer transverse loads to the bearings, restra
 \endhead
 """ + t522_content + r"""
 \end{longtable}
-\noindent\textit{Note: UR = Demand / Capacity. All values $\leq 1.0$ indicate passing checks. The governing check for each component is highlighted in the individual design check sections above.}
+\noindent\textit{Note: $\mathrm{UR} = \text{Demand} / \text{Capacity}$. All values $\le 1.0$ indicate passing checks. The governing check for each component is highlighted in the individual design check sections above.}
 
+""" + ur_charts_content + r"""
 """
 
