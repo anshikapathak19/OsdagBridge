@@ -1800,7 +1800,7 @@ class BridgeGrillageModel:
         # IRC 6:2017 Cl.204.4 Table 6A — multi-lane live-load reduction factors (keyfile.LANE_REDUCTION_FACTORS).
         alf = list(LANE_REDUCTION_FACTORS)
         # IRC 6:2017 Cl.208.3 — dynamic load allowance computed from actual span.
-        dla = 1.0 + IRC6_2017.cl_208_3_impact_factor(self.L)
+        dla = 1.0 + IRC6_2017.cl_208_3_impact_factor(self.L, vehicle_type="wheeled")
         # -------------------------------------------------
         # Reset stores
         # -------------------------------------------------

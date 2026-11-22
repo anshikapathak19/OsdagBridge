@@ -1073,6 +1073,14 @@ Fatigue Shear Resistance, $Q_r$ & IRC 22 Table 8 ($\phi d$, $N_{sc}$) & """
     ]
     t522_content = "\n".join(_t522)
 
+    _gov_veh = str(deck_rpt.get(KEY_DD_VEHICLE, "")).strip().lower()
+    if "70r" in _gov_veh or "aa" in _gov_veh:
+        _impact_clause_label = "Impact Factor (IRC 6 Cl. 208.3)"
+    elif "classa" in _gov_veh or "class a" in _gov_veh or "class_a" in _gov_veh or "classb" in _gov_veh:
+        _impact_clause_label = "Impact Factor (IRC 6 Cl. 208.2)"
+    else:
+        _impact_clause_label = "Impact Factor (IRC 6 Cl. 208.3)"
+
     return r"""
 \chapter{Design Checks}
 
@@ -1344,7 +1352,7 @@ The reinforced concrete deck slab is designed per IRC~112:2011 (flexure, shear, 
 \hline
 \textnormal{Tyre Contact Width (IRC 6 Annex~A)} & """ + _dkf(KEY_DD_TYRE_WIDTH, nd=0, scale=1000.0) + r""" mm (transverse) \\[6pt]
 \hline
-\textnormal{Impact Factor (IRC 6 Cl. 208.2)} & """ + _dkf(KEY_DD_IMPACT_FACTOR, nd=3) + r""" \\[6pt]
+\textnormal{""" + _impact_clause_label + r"""} & """ + _dkf(KEY_DD_IMPACT_FACTOR, nd=3) + r""" \\[6pt]
 \hline
 \textnormal{Governing Live Load Case} & """ + _dkf(KEY_DD_VEHICLE) + r""" \\[6pt]
 \hline

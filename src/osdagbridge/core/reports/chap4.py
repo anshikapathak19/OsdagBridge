@@ -99,7 +99,7 @@ A grillage model was used for structural analysis. The deck is idealized as a gr
 
 \caption{\textbf{Summary of Maximum Demands}}\\
 \hline
-\multirow{2}{*}{\makecell{\textbf{Load}\\\textbf{Case/}\\\textbf{Comb.}}}
+\multirow{2}{*}{\makecell{\textbf{Load Case/}\\\textbf{Comb.}}}
 & \multicolumn{3}{c|}{\textbf{Bending Moment}}
 & \multicolumn{3}{c|}{\textbf{Shear Force}}
 & \multicolumn{2}{c|}{\textbf{Reaction at Supports}}\\
@@ -117,7 +117,7 @@ A grillage model was used for structural analysis. The deck is idealized as a gr
 \endfirsthead
 
 \hline
-\multirow{2}{*}{\makecell{\textbf{Load}\\\textbf{Case/}\\\textbf{Comb.}}}
+\multirow{2}{*}{\makecell{\textbf{Load Case/}\\\textbf{Comb.}}}
 & \multicolumn{3}{c|}{\textbf{Bending Moment}}
 & \multicolumn{3}{c|}{\textbf{Shear Force}}
 & \multicolumn{2}{c|}{\textbf{Reaction at Supports}}\\

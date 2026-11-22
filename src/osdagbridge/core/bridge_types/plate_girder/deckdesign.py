@@ -500,7 +500,7 @@ def design_deck_slab(input_dict: dict, fck: float, fctm: float, fy: float, Es: f
 
     # Impact factor — IRC 6:2017 Cl.208
     if vehicle_class in (KEY_VEHICLE[0], KEY_VEHICLE[1]):
-        IF = IRC6_2017.cl_208_3_impact_factor(span_m)
+        IF = IRC6_2017.cl_208_3_impact_factor(span_m, vehicle_type=vehicle_class)
     else:
         IF = IRC6_2017.cl_208_2_impact_factor(span_m)
     impact_factor = 1.0 + IF

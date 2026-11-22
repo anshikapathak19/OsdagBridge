@@ -156,7 +156,16 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \documentclass[12pt,a4paper]{report}
 
 % Packages
-\usepackage[a4paper, margin=1in]{geometry}
+\usepackage[
+  a4paper,
+  top=25mm,
+  bottom=30mm,
+  left=25mm,
+  right=25mm,
+  headheight=18pt,
+  headsep=14pt,
+  footskip=38pt
+]{geometry}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -196,7 +205,7 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \setlength{\tabcolsep}{6pt}
 \renewcommand{\arraystretch}{1.12}
 \setlength{\LTpre}{0pt}
-\setlength{\LTpost}{6pt}
+\setlength{\LTpost}{4pt}
 % Table rules (outline thickness) and small extra row height for clarity
 \setlength{\arrayrulewidth}{0.5pt}
 \setlength{\extrarowheight}{0.6pt}
@@ -234,13 +243,10 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
   \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
   \renewcommand{\footrule}{%
     \ifbool{hasSDonPage}{%
-      \vspace{-20pt}%
       \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{4pt}%
-    }{%
-      \vspace{-8pt}%
-    }%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}%
+      \vspace{3pt}%
+    }{}%
+    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}%
   }
 }
 \fancypagestyle{plain}{
@@ -252,13 +258,10 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
   \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
   \renewcommand{\footrule}{%
     \ifbool{hasSDonPage}{%
-      \vspace{-20pt}%
       \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{4pt}%
-    }{%
-      \vspace{-8pt}%
-    }%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}%
+      \vspace{3pt}%
+    }{}%
+    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}%
   }
 }
 \fancypagestyle{firstpage}{
@@ -266,7 +269,7 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
   \renewcommand{\headrulewidth}{0pt}
   \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
   \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\footrule}{\vspace{-8pt}\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}}
+  \renewcommand{\footrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}}
 }
 \pagestyle{main}
 \setstretch{1.15}

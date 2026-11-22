@@ -520,37 +520,74 @@ class IRC6_2017:
         return round(IM, 3)
     
     @staticmethod
-    def cl_208_3_impact_factor(span):
+    def cl_208_3_impact_factor(span, vehicle_type="wheeled", is_tracked=None):
         """
         Returns the impact factor (IM) for Class AA and Class 70R loading 
         according to IRC:6-2017 Clause 208.3.
 
         Parameters:
-            span (float): span in metres
+            span (float or int): Span length in metres (must be positive).
+            vehicle_type (str, optional): Vehicle class or type string, e.g. "wheeled",
+                "tracked", "Class70R(W)", "Class70R(T)", "ClassAA(W)", "ClassAA(T)", "bogie".
+                Defaults to "wheeled".
+            is_tracked (bool, optional): Explicit flag indicating whether the vehicle is tracked.
+                If provided, overrides vehicle_type.
+
         Returns:
-            float: impact factor (IM)
+            float: Fractional impact factor (IM) rounded to 3 decimal places.
+                   (To obtain total dynamic factor, compute 1.0 + IM).
+
+        Raises:
+            ValueError: If span is non-positive, non-numeric, or vehicle_type is unrecognized.
         """
-        if span < 9.0: #span less than 9 m
-            if KEY_VEHICLE[1]: # Class70R(T)
-                if span < 5.0:
-                    IM = 0.25
-                if span >= 5.0:
-                    IM = 0.10
-            elif KEY_VEHICLE[0]: # Class70R(W)
+        try:
+            span_val = float(span)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Span must be a valid numeric value, got: {span}") from e
+
+        if span_val <= 0.0:
+            raise ValueError(f"Span must be a positive number, got: {span_val}")
+
+        if is_tracked is not None:
+            if not isinstance(is_tracked, bool):
+                raise ValueError(f"is_tracked must be a boolean (True or False), got: {type(is_tracked)}")
+            _tracked = is_tracked
+        else:
+            vt = str(vehicle_type).strip().lower()
+            if any(tok in vt for tok in ["tracked", "(t)", "_t", "track"]):
+                _tracked = True
+            elif any(tok in vt for tok in ["wheeled", "(w)", "_w", "wheel", "bogie"]):
+                _tracked = False
+            else:
+                raise ValueError(
+                    f"Unrecognized vehicle_type '{vehicle_type}'. Expected 'wheeled', 'tracked', "
+                    "or an IRC vehicle identifier (e.g. 'Class70R(W)', 'Class70R(T)', 'bogie')."
+                )
+
+        if _tracked:
+            # ── Clause 208.3(a): Tracked Vehicles ────────────────────────
+            # (i)   Spans up to 5 m: 25%
+            # (ii)  Spans 5 m to 9 m: linear reduction from 25% at 5 m to 10% at 9 m
+            # (iii) Spans 9 m and above: 10%
+            if span_val < 5.0:
                 IM = 0.25
-        
-        elif 9.0 <= span <= 45.0: #span between 9 m and 45 m
-            if KEY_VEHICLE[1]: # Class70R(T)
+            elif 5.0 <= span_val < 9.0:
+                IM = 0.25 - (span_val - 5.0) * (0.25 - 0.10) / (9.0 - 5.0)
+            else:
                 IM = 0.10
-            elif KEY_VEHICLE[0]: # Class70R(W)
-                if span < 23.0:
-                    IM = 0.25
-                if span >= 23.0:
-                    IM = 9.0/(13.5 + span)
-        else: #span greater than 45 m
-            span = 45.0
-            IM = 9.0/(13.5 + span)
-        
+        else:
+            # ── Clause 208.3(b): Wheeled Vehicles (Steel Bridges) ────────
+            # (i)   Spans less than 9 m: 25%
+            # (ii)  Spans between 9 m and 23 m: 25%
+            # (iii) Spans between 23 m and 45 m: IM = 9.0 / (13.5 + span)
+            # (iv)  Spans greater than 45 m: capped at the 45 m value
+            if span_val < 23.0:
+                IM = 0.25
+            elif 23.0 <= span_val <= 45.0:
+                IM = 9.0 / (13.5 + span_val)
+            else:
+                IM = 9.0 / (13.5 + 45.0)
+
         return round(IM, 3)
             
     
@@ -885,22 +922,244 @@ class IRC6_2017:
         return live_load_considered
     
     @staticmethod
-    def cl_211_2_braking_force(design_lanes):
+    def get_vehicle_load_kN(vehicle_type="wheeled"):
         """
-        Returns braking force as per IRC:6-2017 Clause 211.2.
+        Obtains total vehicle load in kN from actual vehicle helper functions.
+        Raises ValueError if vehicle type is unsupported or vehicle data is unavailable.
+        """
+        vt = str(vehicle_type).lower().strip()
+        if "class_a" in vt or vt == "a":
+            v_data = IRC6_2017.cl_204_1_ClassA_vehicle()
+            if not v_data or 'wheel_loads' not in v_data:
+                raise ValueError("Class A vehicle wheel load data is missing or unavailable.")
+            return sum(v_data['wheel_loads']) / 1000.0
+        elif "track" in vt:
+            v_data = IRC6_2017.cl_204_1_Class70R_vehicle_track()
+            if not v_data or 'wheel_loads_udl' not in v_data or 'x' not in v_data:
+                raise ValueError("Class 70R track vehicle data is missing or unavailable.")
+            length = v_data['x'][1] - v_data['x'][0]
+            udl = v_data['wheel_loads_udl']
+            return (2.0 * length * udl) / 1000.0
+        elif "wheeled" in vt or "70r" in vt:
+            v_data = IRC6_2017.cl_204_1_Class70R_vehicle_wheel()
+            if not v_data or 'wheel_loads' not in v_data:
+                raise ValueError("Class 70R wheeled vehicle data is missing or unavailable.")
+            return sum(v_data['wheel_loads']) / 1000.0
+        else:
+            raise ValueError(f"Unsupported vehicle type '{vehicle_type}'. Cannot determine vehicle load.")
+
+    @staticmethod
+    def _calculate_train_braking(span_m, vehicle_type="wheeled"):
+        """
+        Calculates first-train and succeeding-train braking contributions in kN
+        on one lane for a given span length, using actual vehicle geometry, axle
+        spacing, axle loads, and inter-vehicle spacing from IRC 6:2017.
+
         Returns:
-            float: Braking force in t (rounded to 3 decimal places)
+            tuple: (f_first_kN, f_succ_kN)
         """
-        for lane in range(1, design_lanes + 1):
-            if lane == 1 or lane == 2:
-                wheel_load = IRC6_2017.cl_204_1_ClassA_vehicle()['wheel_loads']
-                braking_force_1 = 0.20 * sum(wheel_load)  # t
-            if lane > 2:
-                wheel_load = IRC6_2017.cl_204_1_Class70R_vehicle_wheel()['wheel_loads']
-                braking_force_2 = 0.05 * sum(wheel_load)  # t
-            
-            total_braking_force = braking_force_1 + braking_force_2
-        return round(total_braking_force, 3)
+        if span_m is None or span_m <= 0:
+            return 0.0, 0.0
+
+        vt = str(vehicle_type).lower().strip()
+        if "track" in vt:
+            v_data = IRC6_2017.cl_204_1_Class70R_vehicle_track()
+            if not v_data or 'wheel_loads_udl' not in v_data or 'x' not in v_data:
+                raise ValueError("Class 70R track vehicle data is unavailable.")
+            track_len = v_data['x'][1] - v_data['x'][0]
+            udl = v_data['wheel_loads_udl']
+            total_load_kN = (2.0 * track_len * udl) / 1000.0
+            spacing = v_data.get('spacing_Class70R(T)', 90.0)
+
+            if span_m < track_len:
+                f_first = 0.20 * total_load_kN * (span_m / track_len)
+                f_succ = 0.0
+            else:
+                f_first = 0.20 * total_load_kN
+                threshold = track_len + spacing
+                if span_m > threshold:
+                    succ_len = min(track_len, span_m - threshold)
+                    f_succ = 0.10 * (2.0 * succ_len * udl) / 1000.0
+                else:
+                    f_succ = 0.0
+            return f_first, f_succ
+
+        elif "class_a" in vt or vt == "a":
+            v_data = IRC6_2017.cl_204_1_ClassA_vehicle()
+            if not v_data or 'wheel_loads' not in v_data or 'x' not in v_data:
+                raise ValueError("Class A vehicle data is unavailable.")
+            axle_positions = [x - v_data['x'][0] for x in v_data['x'][:8]]
+            wheel_loads_kN = [w / 1000.0 for w in v_data['wheel_loads']]
+            spacing = v_data.get('spacing_ClassA', 18.5)
+            rear_gap = v_data['x'][8] - v_data['x'][7]
+            front_gap = v_data['x'][0]
+        else:
+            v_data = IRC6_2017.cl_204_1_Class70R_vehicle_wheel()
+            if not v_data or 'wheel_loads' not in v_data or 'x' not in v_data:
+                raise ValueError("Class 70R wheeled vehicle data is unavailable.")
+            axle_positions = [x - v_data['x'][0] for x in v_data['x'][:7]]
+            wheel_loads_kN = [w / 1000.0 for w in v_data['wheel_loads']]
+            spacing = v_data.get('spacing_Class70R', 30.0)
+            rear_gap = v_data['x'][7] - v_data['x'][6]
+            front_gap = v_data['x'][0]
+
+        total_veh_load_kN = sum(wheel_loads_kN)
+        wheelbase = axle_positions[-1]
+
+        # Case 1: Partial first train accommodation (span < wheelbase)
+        if span_m < wheelbase:
+            max_w1 = 0.0
+            candidate_offsets = []
+            for a_pos in axle_positions:
+                candidate_offsets.append(a_pos)
+                candidate_offsets.append(a_pos - span_m)
+            for off in candidate_offsets:
+                w_on = sum(w for pos, w in zip(axle_positions, wheel_loads_kN) if 0.0 <= (pos - off) <= span_m + 1e-6)
+                if w_on > max_w1:
+                    max_w1 = w_on
+            return 0.20 * max_w1, 0.0
+
+        # Case 2: Full first vehicle accommodated on span
+        f_first = 0.20 * total_veh_load_kN
+        inter_axle_gap = rear_gap + spacing + front_gap
+        dist_v1_to_v2_axle1 = wheelbase + inter_axle_gap
+
+        # If span cannot reach axle 1 of vehicle 2 while vehicle 1 is on span
+        if span_m <= dist_v1_to_v2_axle1:
+            f_succ = 0.0
+            return f_first, f_succ
+
+        # Case 3: Span accommodates succeeding train axles
+        excess_span = span_m - dist_v1_to_v2_axle1
+        w_succ = 0.0
+        for pos, w in zip(axle_positions, wheel_loads_kN):
+            if pos <= excess_span + 1e-6:
+                w_succ += w
+        f_succ = 0.10 * w_succ
+        return f_first, f_succ
+
+    @staticmethod
+    def cl_211_2_braking_force(design_lanes=2, vehicle_type="wheeled", vehicle_load_kN=None, span_m=30.0, carriageway_width=None, return_details=False):
+        """
+        Returns governing braking force in kN as per IRC:6-2017 Clause 211.2.
+
+        Evaluates:
+        - Clause 211.2(a): 20% of first train + 10% of succeeding trains on one lane only.
+          Accounts for partial vehicle accommodation on short spans (span < wheelbase)
+          and succeeding-train entry on long spans (span > inter-vehicle threshold).
+        - Clause 211.2(b): For bridges with > 2 lanes, an additional 5% of vehicle load
+          on each additional lane.
+        - Evaluates all permissible vehicle combinations under IRC 6:2017 Table 6A to
+          identify the true governing longitudinal braking force.
+
+        Args:
+            design_lanes (int): Number of design lanes (default 2).
+            vehicle_type (str): Vehicle type ('wheeled', 'tracked', 'class_a', etc.).
+            vehicle_load_kN (float, optional): Total vehicle load in kN. If provided, overrides vehicle_type.
+            span_m (float): Bridge span in meters (used to evaluate axle and succeeding train accommodation).
+            carriageway_width (float, optional): Carriageway width in meters (if provided, cross-checks lane count).
+            return_details (bool): If True, returns detailed breakdown dict; else returns float in kN.
+
+        Returns:
+            float or dict: Total governing braking force in kN (or detailed dict if return_details=True).
+        """
+        try:
+            n_lanes = int(design_lanes)
+        except (TypeError, ValueError):
+            n_lanes = 2
+        if n_lanes < 1:
+            return {"governing_force_kN": 0.0, "status": "INVALID_LANES"} if return_details else 0.0
+
+        if carriageway_width is not None and carriageway_width > 0:
+            try:
+                cw_lanes = IRC6_2017.table_6(carriageway_width)
+                if cw_lanes > 0:
+                    n_lanes = cw_lanes
+            except Exception:
+                pass
+
+        # Explicit vehicle load override (e.g. single vehicle or test override)
+        if vehicle_load_kN is not None:
+            try:
+                w = float(vehicle_load_kN)
+                f_first = 0.20 * w
+                return {
+                    "governing_force_kN": round(f_first, 3),
+                    "first_train_kN": round(f_first, 3),
+                    "succeeding_train_kN": 0.0,
+                    "additional_lanes_kN": 0.0,
+                    "governing_combination": "Vehicle Load Override",
+                    "status": "OVERRIDE"
+                } if return_details else round(f_first, 3)
+            except (TypeError, ValueError):
+                raise ValueError(f"Invalid vehicle_load_kN: '{vehicle_load_kN}'. Must be a numeric value.")
+
+        vt = str(vehicle_type).lower().strip()
+
+        # If a specific single vehicle is evaluated on a single-lane bridge
+        if vt != "wheeled" and n_lanes == 1:
+            f1, fs = IRC6_2017._calculate_train_braking(span_m, vt)
+            tot = f1 + fs
+            return {
+                "governing_force_kN": round(tot, 3),
+                "first_train_kN": round(f1, 3),
+                "succeeding_train_kN": round(fs, 3),
+                "additional_lanes_kN": 0.0,
+                "governing_combination": f"1 Lane of {vehicle_type}",
+                "status": "SINGLE_VEHICLE"
+            } if return_details else round(tot, 3)
+
+        # Standard Multi-Lane Analysis: evaluate all permissible combinations under Table 6A
+        w_a = IRC6_2017.get_vehicle_load_kN("class_a")
+        w_70w = IRC6_2017.get_vehicle_load_kN("wheeled")
+
+        max_70R = n_lanes // 2
+        combos_evaluated = []
+
+        for n70R in range(max_70R + 1):
+            nA = n_lanes - 2 * n70R
+            parts = []
+            if n70R > 0:
+                parts.append(f"{n70R} Lane{'s' if n70R > 1 else ''} of Class 70R Wheeled")
+            if nA > 0:
+                parts.append(f"{nA} Lane{'s' if nA > 1 else ''} of Class A")
+            combo_name = " + ".join(parts) if parts else "No Vehicle"
+
+            if n70R > 0:
+                f1, fs = IRC6_2017._calculate_train_braking(span_m, "wheeled")
+                f_add = (n70R - 1) * (0.05 * w_70w) + nA * (0.05 * w_a)
+            else:
+                f1, fs = IRC6_2017._calculate_train_braking(span_m, "class_a")
+                extra = max(0, n_lanes - 2)
+                f_add = extra * (0.05 * w_a)
+
+            tot = f1 + fs + f_add
+            combos_evaluated.append({
+                "name": combo_name,
+                "n70R": n70R,
+                "nA": nA,
+                "f_first": round(f1, 3),
+                "f_succ": round(fs, 3),
+                "f_add": round(f_add, 3),
+                "total": round(tot, 3)
+            })
+
+        governing = max(combos_evaluated, key=lambda c: c["total"])
+
+        if return_details:
+            return {
+                "governing_force_kN": governing["total"],
+                "governing_combination": governing["name"],
+                "first_train_kN": governing["f_first"],
+                "succeeding_train_kN": governing["f_succ"],
+                "additional_lanes_kN": governing["f_add"],
+                "design_lanes": n_lanes,
+                "span_m": span_m,
+                "all_combinations": combos_evaluated,
+                "application_height_m": 1.20,
+                "status": "CALCULATED"
+            }
+        return governing["total"]
     
     @staticmethod
     def cl_211_3_braking_force_location():

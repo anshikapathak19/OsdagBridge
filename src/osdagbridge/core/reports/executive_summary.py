@@ -10,7 +10,11 @@ from osdagbridge.core.utils.common import (
     KEY_STRUCTURE_TYPE,
     KEY_TS_DECK_THICKNESS,
     KEY_TS_GIRDER_SPACING,
-    KEY_TS_NO_OF_GIRDERS
+    KEY_TS_NO_OF_GIRDERS,
+    KEY_SD_DEFL_LIVE,
+    KEY_SD_DEFL_TOTAL,
+    KEY_SD_DEFL_ALLOW_LIVE,
+    KEY_SD_DEFL_ALLOW_TOTAL,
 )
 
 
@@ -31,7 +35,21 @@ def _max_member_efficiency(pair_designs):
     """Maximum Osdag 'efficiency' (utilization ratio) over a cross-bracing or
     end-diaphragm result dump (nested pair -> member -> force_type -> raw).
     Reads already-computed results only; nothing is recalculated here."""
-    from osdagbridge.core.bridge_types.plate_girder.results_data import _extract_osdag_summary
+    try:
+        from osdagbridge.core.bridge_types.plate_girder.results_data import _extract_osdag_summary
+    except ImportError:
+        def _extract_osdag_summary(result: dict) -> dict:
+            if not result:
+                return {}
+            def _first(*keys):
+                for k in keys:
+                    v = result.get(k)
+                    if v is not None:
+                        return v
+                return None
+            return {
+                "efficiency": _first("efficiency", "Member.efficiency", "Optimum.UR"),
+            }
     if not isinstance(pair_designs, dict):
         return None
     best = None
@@ -129,6 +147,126 @@ def executive_summary(input_dict, output_dict, fig_paths) -> str:
 
     gov = _tex(gov_name) if gov_name not in (None, '', 'None') else ''
     ur = _tex(overall_utilization_ratio) if overall_utilization_ratio else ''
+
+    # ── Component-level design statuses for Key Design Outcomes Summary ────────
+    # 1. Girder status: fail if any governing check fails (strength, fatigue, stiffener, deflection)
+    girder_is_fail = bool(failing)
+
+    # Allowable deflection limits: span / 800 (live), span / 600 (total)
+    try:
+        span_val = input_dict.get(KEY_SPAN)
+        span_m = float(span_val) if span_val not in (None, "") else None
+    except (TypeError, ValueError):
+        span_m = None
+
+    allow_live = None
+    allow_total = None
+    if span_m is not None and span_m > 0:
+        allow_live = span_m * 1000.0 / 800.0
+        allow_total = span_m * 1000.0 / 600.0
+
+    if output_dict.get(KEY_SD_DEFL_ALLOW_LIVE) is not None:
+        try:
+            allow_live = float(output_dict[KEY_SD_DEFL_ALLOW_LIVE])
+        except (TypeError, ValueError):
+            pass
+    if output_dict.get(KEY_SD_DEFL_ALLOW_TOTAL) is not None:
+        try:
+            allow_total = float(output_dict[KEY_SD_DEFL_ALLOW_TOTAL])
+        except (TypeError, ValueError):
+            pass
+
+    # Check deflection in output_dict
+    if not girder_is_fail:
+        actual_total = output_dict.get(KEY_SD_DEFL_TOTAL)
+        if actual_total is not None and allow_total is not None:
+            try:
+                if float(actual_total) > allow_total:
+                    girder_is_fail = True
+            except (TypeError, ValueError):
+                pass
+
+    if not girder_is_fail:
+        actual_live = output_dict.get(KEY_SD_DEFL_LIVE)
+        if actual_live is not None and allow_live is not None:
+            try:
+                if float(actual_live) > allow_live:
+                    girder_is_fail = True
+            except (TypeError, ValueError):
+                pass
+
+    if not girder_is_fail and (allow_total is not None or allow_live is not None):
+        for k, v in output_dict.items():
+            if v is None:
+                continue
+            if allow_total is not None and str(k).startswith(f"{KEY_SD_DEFL_TOTAL}."):
+                try:
+                    if float(v) > allow_total:
+                        girder_is_fail = True
+                        break
+                except (TypeError, ValueError):
+                    pass
+            elif allow_live is not None and str(k).startswith(f"{KEY_SD_DEFL_LIVE}."):
+                try:
+                    if float(v) > allow_live:
+                        girder_is_fail = True
+                        break
+                except (TypeError, ValueError):
+                    pass
+
+    # Check per_lc checks in per_girder
+    if not girder_is_fail:
+        for g, gd in per_girder.items():
+            if str(g).startswith("EB"):
+                continue
+            for lc_res in (gd.get("per_lc") or {}).values():
+                if not isinstance(lc_res, dict):
+                    continue
+                for chk in (lc_res.get("checks") or []):
+                    try:
+                        _v = chk.get("dcr")
+                        _d = float(_v) if _v is not None else None
+                    except (TypeError, ValueError):
+                        _d = None
+                    if ("FAIL" in str(chk.get("status", "")).upper()) or (_d is not None and _d > 1.0):
+                        girder_is_fail = True
+                        break
+                if girder_is_fail:
+                    break
+
+    # Check overall_status in design_results / per_girder
+    if not girder_is_fail:
+        if "FAIL" in str(design_results.get("overall_status", "")).upper():
+            girder_is_fail = True
+        elif girder_max_ur is not None and girder_max_ur > 1.0:
+            girder_is_fail = True
+
+    girder_status = "fail" if girder_is_fail else "pass"
+
+    # 2. Cross bracing status
+    cb_max = _max_member_efficiency(cb_results)
+    cb_is_fail = (
+        ("FAIL" in str(cb_results.get("status", "")).upper())
+        or (cb_max is not None and cb_max > 1.0)
+    )
+    cb_status = "fail" if cb_is_fail else "pass"
+
+    # 3. End diaphragm status
+    ed_max = _max_member_efficiency(ed_results)
+    ed_is_fail = (
+        ("FAIL" in str(ed_results.get("status", "")).upper())
+        or (ed_max is not None and ed_max > 1.0)
+    )
+    ed_status = "fail" if ed_is_fail else "pass"
+
+    # 4. Deck slab status
+    deck_max = _max_float([v for k, v in deck_results.items() if str(k).startswith("ur_")])
+    deck_is_fail = (
+        ("FAIL" in str(deck_results.get("deck_design_check", "")).upper())
+        or ("FAIL" in str(deck_results.get("status", "")).upper())
+        or (deck_max is not None and deck_max > 1.0)
+    )
+    deck_status = "fail" if deck_is_fail else "pass"
 
     # --- Dynamic Table 1: fetch backend-populated labels via exact suffix pattern ---
     # defaults.py populates: KEY_MP_GD_SELECT_GIRDER + '.G{i}' = 'G{i}'
@@ -230,10 +368,10 @@ This section provides a concise summary of the bridge design, key inputs, govern
 \addcontentsline{toc}{section}{Key Design Outcomes Summary}
 \label{sec:key-outcomes}
 
-\noindent Girder design pass \\
-Cross bracing design pass \\
-End Diaphragm design pass \\
-Deck design pass
+\noindent Girder design """ + girder_status + r""" \\
+Cross bracing design """ + cb_status + r""" \\
+End Diaphragm design """ + ed_status + r""" \\
+Deck design """ + deck_status + r"""
 
 \section*{Design Assumptions and Limitations}
 \addcontentsline{toc}{section}{Design Assumptions and Limitations}

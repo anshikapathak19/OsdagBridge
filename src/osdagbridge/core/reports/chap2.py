@@ -248,19 +248,32 @@ def _girder_tables(input_dict, n_girders):
     ]
 
     # Helper: one girder-dimension row
+    def _render_dim_mm(key):
+        val = input_dict.get(key)
+        if val in ("", None):
+            return ""
+        try:
+            return f"{float(val) * 1000.0:.1f}"
+        except (ValueError, TypeError):
+            return _render_value(input_dict, key)
+
     def _dim_row(g_lbl, i):
+        top_w = _render_dim_mm(f"{KEY_MP_GIRDER_TOP_FLANGE_WIDTH}.G{i}.M1")
+        top_t = _render_dim_mm(f"{KEY_MP_GIRDER_TOP_FLANGE_THICKNESS}.G{i}.M1")
+        top_flange = f"{top_w}, {top_t}" if top_w and top_t else (top_w or top_t)
+
+        bot_w = _render_dim_mm(f"{KEY_MP_GIRDER_BOTTOM_FLANGE_WIDTH}.G{i}.M1")
+        bot_t = _render_dim_mm(f"{KEY_MP_GIRDER_BOTTOM_FLANGE_THICKNESS}.G{i}.M1")
+        bot_flange = f"{bot_w}, {bot_t}" if bot_w and bot_t else (bot_w or bot_t)
+
         return (g_lbl + r""" & """
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_DEPTH}.G{i}.M1", ' mm'))
+                + _render_dim_mm(f"{KEY_MP_GIRDER_DEPTH}.G{i}.M1")
                 + r""" & """
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_WEB_THICKNESS}.G{i}.M1", ' mm'))
+                + _render_dim_mm(f"{KEY_MP_GIRDER_WEB_THICKNESS}.G{i}.M1")
                 + r""" & """
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_TOP_FLANGE_WIDTH}.G{i}.M1", ' mm'))
-                + ', '
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_TOP_FLANGE_THICKNESS}.G{i}.M1", ' mm'))
+                + top_flange
                 + r""" & """
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_BOTTOM_FLANGE_WIDTH}.G{i}.M1", ' mm'))
-                + ', '
-                + (_render_value(input_dict, f"{KEY_MP_GIRDER_BOTTOM_FLANGE_THICKNESS}.G{i}.M1", ' mm'))
+                + bot_flange
                 + r""" \\[8pt]
 \hline
 """)
@@ -405,38 +418,33 @@ def _bracing_tables(input_dict, n_girders):
 \newpage
 
 \vspace{0.4em}
-\setlength{\tabcolsep}{4pt}
-\setlength\LTleft{0pt}
-\setlength\LTright{\fill}
+\setlength{\tabcolsep}{6pt}
 
-\begin{longtable}{|L{2.2cm}|L{2.2cm}|L{3.0cm}|L{2.5cm}|C{1.8cm}|C{1.8cm}|}
+\begin{longtable}{|C{2.5cm}|C{3.0cm}|C{3.2cm}|C{4.3cm}|C{2.5cm}|}
 \caption{\textbf{Member Properties: Cross Bracing Details}}\\
 \hline
-\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} & \textbf{Spacing (m)} \\
+\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} & \textbf{Spacing (m)} \\[6pt]
 \hline
 \endfirsthead
 \hline
-\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} & \textbf{Spacing (m)} \\
+\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} & \textbf{Spacing (m)} \\[6pt]
 \hline
 \endhead
 """
 + cb_rows
 + r"""\end{longtable}
 
-\vspace{0.4em}
-\noindent
-\setlength{\tabcolsep}{4pt}
-\setlength\LTleft{0pt}
-\setlength\LTright{\fill}
+\vspace{0.8em}
+\setlength{\tabcolsep}{6pt}
 
-\begin{longtable}{|L{2.2cm}|L{2.2cm}|L{3.0cm}|L{2.5cm}|C{1.8cm}|C{1.8cm}|}
+\begin{longtable}{|C{3.0cm}|C{3.5cm}|C{4.0cm}|C{5.0cm}|}
 \caption{\textbf{Member Properties: End Diaphragm Details}}\\
 \hline
-\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} \\
+\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} \\[6pt]
 \hline
 \endfirsthead
 \hline
-\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} \\
+\textbf{Location} & \textbf{Member IDs} & \textbf{Type of Bracing} & \textbf{Bracing Section} \\[6pt]
 \hline
 \endhead
 """

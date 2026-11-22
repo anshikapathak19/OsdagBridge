@@ -224,6 +224,312 @@ def test_3_page_table_pagination(tmp_path):
     assert positions == sorted(positions), "Row values must appear in strict chronological order"
 
 
+def test_vehicle_live_loads_selection_and_boolean_filtering():
+    """Verify Vehicle Live Load table dynamically filters selections with strict boolean checking."""
+    from osdagbridge.core.reports.chap3 import ch3_loads
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_FOOTPATH,
+        KEY_LL_IRC_CLASS_A, KEY_LL_IRC_70R_WHEELED, KEY_LL_IRC_70R_TRACKED,
+        KEY_LL_IRC_CLASS_SV, KEY_BL_IRC_CLASS_SV
+    )
+
+    inp = {
+        KEY_SPAN: "30",
+        KEY_CARRIAGEWAY_WIDTH: "7.5",
+        KEY_FOOTPATH: "None",
+        KEY_LL_IRC_CLASS_A: True,
+        KEY_LL_IRC_70R_WHEELED: "True",
+        KEY_LL_IRC_70R_TRACKED: "False",  # String "False" must NOT be treated as True!
+        KEY_LL_IRC_CLASS_SV: False,
+        KEY_BL_IRC_CLASS_SV: False,
+    }
+
+    tex = ch3_loads(inp)
+    assert r"\caption{\textbf{Vehicle Live Load Parameters}}" in tex
+    assert r"\endfirsthead" in tex
+    assert r"\endhead" in tex
+
+    # Vehicle selection assertions
+    assert "Class A" in tex
+    assert "Class 70R (Wheeled)" in tex
+    assert "Class 70R (Tracked)" not in tex, "String 'False' must not be selected!"
+    assert "Class SV" not in tex
+
+    # Total load and impact factor assertions
+    assert "543.5" in tex  # Class A total load
+    assert "981.0" in tex  # Class 70R Wheeled total load
+    assert "1.207" in tex  # Impact factor for 30m span
+
+    # Centrifugal force and braking assertions
+    assert "Not Applicable" in tex
+    assert "Centrifugal force is Not Applicable for straight bridge alignment" in tex
+    assert "196.20" in tex  # Braking force for 2 lanes
+
+
+def test_vehicle_live_loads_custom_vehicles_and_braking():
+    """Verify custom vehicles handling, Class SV braking opt-in, and multi-lane braking calculation."""
+    from osdagbridge.core.reports.chap3 import ch3_loads
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_FOOTPATH,
+        KEY_LL_IRC_CLASS_A, KEY_LL_IRC_CLASS_SV, KEY_BL_IRC_CLASS_SV,
+        KEY_LL_CUSTOM_VEHICLES, KEY_WC_LD_LANE_TABLE_COUNT
+    )
+
+    # 4-lane bridge with Class SV (braking opt-out) and custom vehicle
+    inp = {
+        KEY_SPAN: "30",
+        KEY_CARRIAGEWAY_WIDTH: "14.0",
+        KEY_WC_LD_LANE_TABLE_COUNT: 4,
+        KEY_FOOTPATH: "None",
+        KEY_LL_IRC_CLASS_A: False,
+        KEY_LL_IRC_CLASS_SV: True,
+        KEY_BL_IRC_CLASS_SV: False,  # Opt-out of braking for Class SV
+        KEY_LL_CUSTOM_VEHICLES: [
+            {
+                "name": "Special Multi-Axle Trailer",
+                "total_load_kN": 4500.0,
+                "impact_factor": 0.10,
+            }
+        ],
+    }
+
+    tex = ch3_loads(inp)
+    assert "Special Multi-Axle Trailer" in tex
+    assert "4500.0" in tex
+    assert "1.100" in tex  # 1.0 + 0.10 impact
+    assert "Class SV (Special Vehicle)" in tex
+    assert "3776.8" in tex
+
+    # 4-lane braking force per IRC 6 Cl. 211.2 / Table 6A:
+    # 20% of 70R Wheeled (196.20 kN) + 2 * 5% of Class A (54.35 kN) = 250.55 kN
+    assert "250.55" in tex
+
+    # Verify Class SV has braking 'No' and '---'
+    sv_pos = tex.find("Class SV (Special Vehicle)")
+    sv_line = tex[sv_pos:tex.find(r"\\", sv_pos)]
+    assert "& No &" in sv_line
+    assert "---" in sv_line
+
+
+def test_footpath_live_load_table():
+    """Verify separate Footpath Live Load table for None, IRC 6, and Custom modes."""
+    from osdagbridge.core.reports.chap3 import ch3_loads
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_FOOTPATH, KEY_TS_NO_OF_FOOTPATHS,
+        KEY_TS_FOOTPATH_WIDTH, KEY_LL_FOOTPATH_PRESSURE_MODE, KEY_LL_FOOTPATH_PRESSURE_VALUE
+    )
+
+    # Case A: No footpath
+    inp_none = {
+        KEY_SPAN: "30",
+        KEY_CARRIAGEWAY_WIDTH: "7.5",
+        KEY_FOOTPATH: "None",
+    }
+    tex_none = ch3_loads(inp_none)
+    assert r"\caption{\textbf{Footpath / Pedestrian Live Load}}" in tex_none
+    assert "Footpath Provision & None" in tex_none
+    assert "Applied Footpath Live Load & Not Applicable & No footpath provided" in tex_none
+
+    # Case B: Footpath Both Sides with default "As per IRC 6" mode
+    inp_irc = {
+        KEY_SPAN: "30",
+        KEY_CARRIAGEWAY_WIDTH: "7.5",
+        KEY_FOOTPATH: "Both Sides",
+        KEY_TS_NO_OF_FOOTPATHS: 2,
+        KEY_TS_FOOTPATH_WIDTH: 1.5,
+        KEY_LL_FOOTPATH_PRESSURE_MODE: "As per IRC 6",
+    }
+    tex_irc = ch3_loads(inp_irc)
+    assert "Footpath Provision & Both Sides" in tex_irc
+    assert "Number of Footpaths & 2" in tex_irc
+    assert "1.50 m" in tex_irc
+    assert "Pressure Mode & As per IRC 6" in tex_irc
+    assert "4.905 kN/m" in tex_irc
+    assert "IRC 6 Cl. 206.1 (500 kg/m" in tex_irc
+
+    # Case C: Footpath Single Side with Custom mode
+    inp_cust = {
+        KEY_SPAN: "30",
+        KEY_CARRIAGEWAY_WIDTH: "7.5",
+        KEY_FOOTPATH: "Single Side",
+        KEY_TS_NO_OF_FOOTPATHS: 1,
+        KEY_TS_FOOTPATH_WIDTH: 2.0,
+        KEY_LL_FOOTPATH_PRESSURE_MODE: "Custom",
+        KEY_LL_FOOTPATH_PRESSURE_VALUE: 4.0,
+    }
+    tex_cust = ch3_loads(inp_cust)
+    assert "Footpath Provision & Single Side" in tex_cust
+    assert "Number of Footpaths & 1" in tex_cust
+    assert "2.00 m" in tex_cust
+    assert "Pressure Mode & Custom" in tex_cust
+    assert "4.000 kN/m" in tex_cust
+
+
+def test_executive_summary_girder_fails_fatigue():
+    """Verify Girder design status is FAIL when fatigue check fails despite passing strength checks."""
+    from osdagbridge.core.reports.executive_summary import executive_summary
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_STRUCTURE_TYPE,
+        KEY_TS_NO_OF_GIRDERS, KEY_TS_GIRDER_SPACING, KEY_TS_DECK_THICKNESS,
+        KEY_SD_DEFL_TOTAL, KEY_SD_DEFL_ALLOW_TOTAL
+    )
+    inp = {
+        KEY_SPAN: 30.0,
+        KEY_CARRIAGEWAY_WIDTH: 7.5,
+        KEY_STRUCTURE_TYPE: 'Plate Girder',
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.5,
+        KEY_TS_DECK_THICKNESS: 250,
+    }
+    out = {
+        'design_results': {
+            'per_girder': {
+                'G1': {
+                    'checks': [
+                        {'name': 'ULS Flexure', 'dcr': 0.8, 'status': 'PASS'},
+                        {'name': 'ULS Shear', 'dcr': 0.7, 'status': 'PASS'},
+                        {'name': 'Fatigue Normal Stress', 'dcr': 1.58, 'status': 'FAIL'},
+                    ]
+                }
+            }
+        },
+        KEY_SD_DEFL_TOTAL: 40.0,
+        KEY_SD_DEFL_ALLOW_TOTAL: 50.0,
+    }
+    tex = executive_summary(inp, out, {})
+    assert 'Girder design fail' in tex
+    assert 'Overall Design Status' in tex
+
+
+def test_executive_summary_girder_fails_deflection():
+    """Verify Girder design status is FAIL when deflection check fails despite passing strength and fatigue."""
+    from osdagbridge.core.reports.executive_summary import executive_summary
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_STRUCTURE_TYPE,
+        KEY_TS_NO_OF_GIRDERS, KEY_TS_GIRDER_SPACING, KEY_TS_DECK_THICKNESS,
+        KEY_SD_DEFL_TOTAL, KEY_SD_DEFL_ALLOW_TOTAL
+    )
+    inp = {
+        KEY_SPAN: 30.0,
+        KEY_CARRIAGEWAY_WIDTH: 7.5,
+        KEY_STRUCTURE_TYPE: 'Plate Girder',
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.5,
+        KEY_TS_DECK_THICKNESS: 250,
+    }
+    out = {
+        'design_results': {
+            'per_girder': {
+                'G1': {
+                    'checks': [
+                        {'name': 'ULS Flexure', 'dcr': 0.8, 'status': 'PASS'},
+                        {'name': 'ULS Shear', 'dcr': 0.7, 'status': 'PASS'},
+                        {'name': 'Fatigue Normal Stress', 'dcr': 0.85, 'status': 'PASS'},
+                    ]
+                }
+            }
+        },
+        KEY_SD_DEFL_TOTAL: 51.225,
+        KEY_SD_DEFL_ALLOW_TOTAL: 50.0,
+    }
+    tex = executive_summary(inp, out, {})
+    assert 'Girder design fail' in tex
+
+
+def test_executive_summary_girder_passes_all():
+    """Verify Girder design status is PASS when all governing checks pass."""
+    from osdagbridge.core.reports.executive_summary import executive_summary
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_STRUCTURE_TYPE,
+        KEY_TS_NO_OF_GIRDERS, KEY_TS_GIRDER_SPACING, KEY_TS_DECK_THICKNESS,
+        KEY_SD_DEFL_TOTAL, KEY_SD_DEFL_ALLOW_TOTAL
+    )
+    inp = {
+        KEY_SPAN: 30.0,
+        KEY_CARRIAGEWAY_WIDTH: 7.5,
+        KEY_STRUCTURE_TYPE: 'Plate Girder',
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.5,
+        KEY_TS_DECK_THICKNESS: 250,
+    }
+    out = {
+        'design_results': {
+            'per_girder': {
+                'G1': {
+                    'checks': [
+                        {'name': 'ULS Flexure', 'dcr': 0.8, 'status': 'PASS'},
+                        {'name': 'ULS Shear', 'dcr': 0.7, 'status': 'PASS'},
+                        {'name': 'Fatigue Normal Stress', 'dcr': 0.85, 'status': 'PASS'},
+                    ]
+                }
+            }
+        },
+        KEY_SD_DEFL_TOTAL: 40.0,
+        KEY_SD_DEFL_ALLOW_TOTAL: 50.0,
+    }
+    tex = executive_summary(inp, out, {})
+    assert 'Girder design pass' in tex
+
+
+def test_executive_summary_independent_component_statuses():
+    """Verify independent statuses for Deck, Cross Bracing, and End Diaphragm."""
+    from osdagbridge.core.reports.executive_summary import executive_summary
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_STRUCTURE_TYPE,
+        KEY_TS_NO_OF_GIRDERS, KEY_TS_GIRDER_SPACING, KEY_TS_DECK_THICKNESS,
+        KEY_SD_DEFL_TOTAL, KEY_SD_DEFL_ALLOW_TOTAL
+    )
+    inp = {
+        KEY_SPAN: 30.0,
+        KEY_CARRIAGEWAY_WIDTH: 7.5,
+        KEY_STRUCTURE_TYPE: 'Plate Girder',
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.5,
+        KEY_TS_DECK_THICKNESS: 250,
+    }
+    base_out = {
+        'design_results': {
+            'per_girder': {
+                'G1': {
+                    'checks': [
+                        {'name': 'ULS Flexure', 'dcr': 0.8, 'status': 'PASS'},
+                        {'name': 'ULS Shear', 'dcr': 0.7, 'status': 'PASS'},
+                    ]
+                }
+            }
+        },
+        KEY_SD_DEFL_TOTAL: 40.0,
+        KEY_SD_DEFL_ALLOW_TOTAL: 50.0,
+    }
+
+    # 1. Deck fails independently
+    out_deck = dict(base_out)
+    out_deck['deck_design_results'] = {'ur_flexure': 1.25, 'deck_design_check': 'FAIL'}
+    tex_deck = executive_summary(inp, out_deck, {})
+    assert 'Girder design pass' in tex_deck
+    assert 'Deck design fail' in tex_deck
+    assert 'Cross bracing design pass' in tex_deck
+    assert 'End Diaphragm design pass' in tex_deck
+
+    # 2. Cross bracing fails independently
+    out_cb = dict(base_out)
+    out_cb['crossbracing_design_results'] = {'P1': {'diagonal': {'tension': {'Member.efficiency': 1.25}}}}
+    tex_cb = executive_summary(inp, out_cb, {})
+    assert 'Girder design pass' in tex_cb
+    assert 'Cross bracing design fail' in tex_cb
+    assert 'Deck design pass' in tex_cb
+    assert 'End Diaphragm design pass' in tex_cb
+
+    # 3. End diaphragm fails independently
+    out_ed = dict(base_out)
+    out_ed['end_diaphragm_design_results'] = {'P1': {'diagonal': {'compression': {'Member.efficiency': 1.15}}}}
+    tex_ed = executive_summary(inp, out_ed, {})
+    assert 'Girder design pass' in tex_ed
+    assert 'End Diaphragm design fail' in tex_ed
+    assert 'Cross bracing design pass' in tex_ed
+    assert 'Deck design pass' in tex_ed
+
+
 if __name__ == "__main__":
     import pathlib
     import tempfile
@@ -247,4 +553,33 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as td:
         test_3_page_table_pagination(pathlib.Path(td))
     print("PASS: test_3_page_table_pagination")
-    print("\nALL 5 TESTS PASSED SUCCESSFULLY!")
+
+    print("Running test_vehicle_live_loads_selection_and_boolean_filtering...")
+    test_vehicle_live_loads_selection_and_boolean_filtering()
+    print("PASS: test_vehicle_live_loads_selection_and_boolean_filtering")
+
+    print("Running test_vehicle_live_loads_custom_vehicles_and_braking...")
+    test_vehicle_live_loads_custom_vehicles_and_braking()
+    print("PASS: test_vehicle_live_loads_custom_vehicles_and_braking")
+
+    print("Running test_footpath_live_load_table...")
+    test_footpath_live_load_table()
+    print("PASS: test_footpath_live_load_table")
+
+    print("Running test_executive_summary_girder_fails_fatigue...")
+    test_executive_summary_girder_fails_fatigue()
+    print("PASS: test_executive_summary_girder_fails_fatigue")
+
+    print("Running test_executive_summary_girder_fails_deflection...")
+    test_executive_summary_girder_fails_deflection()
+    print("PASS: test_executive_summary_girder_fails_deflection")
+
+    print("Running test_executive_summary_girder_passes_all...")
+    test_executive_summary_girder_passes_all()
+    print("PASS: test_executive_summary_girder_passes_all")
+
+    print("Running test_executive_summary_independent_component_statuses...")
+    test_executive_summary_independent_component_statuses()
+    print("PASS: test_executive_summary_independent_component_statuses")
+
+    print("\nALL 12 TESTS PASSED SUCCESSFULLY!")
