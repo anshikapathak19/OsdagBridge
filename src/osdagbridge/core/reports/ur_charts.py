@@ -27,6 +27,22 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 
+from osdagbridge.core.reports.report_style import (
+    CHART_UR_PASS,
+    CHART_UR_FAIL,
+    CHART_UR_LIMIT,
+    CHART_UR_BAR_EDGE,
+    CHART_UR_TITLE,
+    CHART_UR_SUBTITLE,
+    CHART_UR_BOX_BG,
+    CHART_UR_BOX_EDGE,
+    CHART_UR_SPINE,
+    CHART_UR_ANNOT_PASS,
+    CHART_UR_ANNOT_FAIL,
+    CHART_UR_LEGEND_BG,
+    CHART_UR_LEGEND_EDGE,
+)
+
 from osdagbridge.core.utils.common import (
     KEY_DD_HAS_OVERHANG,
     KEY_DD_M_ULS_HOG,
@@ -460,16 +476,16 @@ def plot_ur_bar_chart(
             va="center",
             fontsize=12,
             fontweight="medium",
-            color="#495057",
+            color=CHART_UR_SUBTITLE,
             transform=ax.transAxes,
             bbox=dict(
                 boxstyle="round,pad=1.2",
-                facecolor="#f8f9fa",
-                edgecolor="#ced4da",
+                facecolor=CHART_UR_BOX_BG,
+                edgecolor=CHART_UR_BOX_EDGE,
                 linewidth=1.2,
             ),
         )
-        ax.set_title(title, fontsize=12, fontweight="bold", pad=12, color="#212529")
+        ax.set_title(title, fontsize=12, fontweight="bold", pad=12, color=CHART_UR_TITLE)
         ax.axis("off")
         fig.tight_layout()
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -480,7 +496,7 @@ def plot_ur_bar_chart(
     # ── Active UR Bar Chart Mode ──
     labels = [d[0] for d in data]
     values = [d[1] for d in data]
-    colors = ["#2e7d32" if d[2] == "PASS" else "#d32f2f" for d in data]
+    colors = [CHART_UR_PASS if d[2] == "PASS" else CHART_UR_FAIL for d in data]
 
     x_indices = range(len(labels))
     bar_width = 0.52 if len(labels) <= 8 else 0.58
@@ -490,7 +506,7 @@ def plot_ur_bar_chart(
         values,
         color=colors,
         width=bar_width,
-        edgecolor="#333333",
+        edgecolor=CHART_UR_BAR_EDGE,
         linewidth=0.8,
         zorder=3,
     )
@@ -498,19 +514,19 @@ def plot_ur_bar_chart(
     # Red dashed threshold line at UR = 1.0
     ax.axhline(
         1.0,
-        color="#d32f2f",
+        color=CHART_UR_LIMIT,
         linestyle="--",
         linewidth=1.6,
         zorder=4,
         label="Limit (UR = 1.0)",
     )
 
-    ax.set_ylabel("Utilisation Ratio (UR)", fontsize=10, fontweight="bold", color="#212529")
+    ax.set_ylabel("Utilisation Ratio (UR)", fontsize=10, fontweight="bold", color=CHART_UR_TITLE)
 
     chart_title = title
     if subtitle:
         chart_title += f"\n({subtitle})"
-    ax.set_title(chart_title, fontsize=11, fontweight="bold", pad=10, color="#212529")
+    ax.set_title(chart_title, fontsize=11, fontweight="bold", pad=10, color=CHART_UR_TITLE)
 
     ax.set_xticks(list(x_indices))
 
@@ -537,12 +553,12 @@ def plot_ur_bar_chart(
     for sp in ["top", "right"]:
         ax.spines[sp].set_visible(False)
     for sp in ["left", "bottom"]:
-        ax.spines[sp].set_color("#666666")
+        ax.spines[sp].set_color(CHART_UR_SPINE)
 
     # Value annotations above each bar
     for bar in bars:
         h = bar.get_height()
-        annot_color = "#1b5e20" if h <= 1.0 else "#b71c1c"
+        annot_color = CHART_UR_ANNOT_PASS if h <= 1.0 else CHART_UR_ANNOT_FAIL
         ax.annotate(
             f"{h:.2f}",
             xy=(bar.get_x() + bar.get_width() / 2, h),
@@ -557,16 +573,16 @@ def plot_ur_bar_chart(
 
     # Explanatory legend with mathematical notation
     legend_elements = [
-        mpatches.Patch(facecolor="#2e7d32", edgecolor="#333333", label="PASS (UR ≤ 1.0)"),
-        mpatches.Patch(facecolor="#d32f2f", edgecolor="#333333", label="FAIL (UR > 1.0)"),
-        mlines.Line2D([], [], color="#d32f2f", linestyle="--", linewidth=1.6, label="Limit (UR = 1.0)"),
+        mpatches.Patch(facecolor=CHART_UR_PASS, edgecolor=CHART_UR_BAR_EDGE, label="PASS (UR ≤ 1.0)"),
+        mpatches.Patch(facecolor=CHART_UR_FAIL, edgecolor=CHART_UR_BAR_EDGE, label="FAIL (UR > 1.0)"),
+        mlines.Line2D([], [], color=CHART_UR_LIMIT, linestyle="--", linewidth=1.6, label="Limit (UR = 1.0)"),
     ]
     ax.legend(
         handles=legend_elements,
         loc="upper right",
         framealpha=0.92,
-        facecolor="#ffffff",
-        edgecolor="#cccccc",
+        facecolor=CHART_UR_LEGEND_BG,
+        edgecolor=CHART_UR_LEGEND_EDGE,
         fontsize=8.2,
     )
 

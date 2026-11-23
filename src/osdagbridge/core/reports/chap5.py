@@ -144,6 +144,12 @@ from osdagbridge.core.utils.common import (
 )
 
 from osdagbridge.core.reports.report_utils import _tex, _render_value, get_girder_entries
+from osdagbridge.core.reports.report_style import (
+    TABCOLSEP_COMPACT,
+    LT_LEFT_FLUSH,
+    LT_RIGHT_DEFAULT,
+    format_status_latex,
+)
 
 if TYPE_CHECKING:
     pass
@@ -225,7 +231,7 @@ def ch5_design_checks(checks_data, bridge, fig_paths: dict | None = None) -> str
     try:
         _flex_ur = float(bridge.output_dict.get(KEY_UTIL_FLEXURE)) / 100.0
         _flex_ur_str = f"{_flex_ur:.2f}"
-        _flex_status = "PASS" if _flex_ur <= 1.0 else r"\textcolor{red}{FAIL}"
+        _flex_status = format_status_latex("PASS") if _flex_ur <= 1.0 else format_status_latex("FAIL")
     except (TypeError, ValueError):
         _flex_ur_str = ""
         _flex_status = "---"
@@ -247,7 +253,7 @@ def ch5_design_checks(checks_data, bridge, fig_paths: dict | None = None) -> str
     try:
         _shear_ur = float(bridge.output_dict.get(KEY_UTIL_SHEAR)) / 100.0
         _shear_ur_str = f"{_shear_ur:.2f}"
-        _shear_status = "PASS" if _shear_ur <= 1.0 else r"\textcolor{red}{FAIL}"
+        _shear_status = format_status_latex("PASS") if _shear_ur <= 1.0 else format_status_latex("FAIL")
     except (TypeError, ValueError):
         _shear_ur_str = ""
         _shear_status = "---"
@@ -277,10 +283,10 @@ def ch5_design_checks(checks_data, bridge, fig_paths: dict | None = None) -> str
     # Interaction DCRs use the engine bands: PASS <0.90, WARN <1.00, FAIL ≥1.00.
     def _interaction_status(ratio):
         if ratio < 0.90:
-            return "PASS"
+            return format_status_latex("PASS")
         elif ratio < 1.00:
             return "WARN"
-        return r"\textcolor{red}{FAIL}"
+        return format_status_latex("FAIL")
     # M-V interaction UR stored as percent → show ratio (2 dp).
     try:
         _mv_ur = float(bridge.output_dict.get(KEY_UTIL_INTERACTION)) / 100.0
@@ -750,7 +756,7 @@ Fatigue Shear Resistance, $Q_r$ & IRC 22 Table 8 ($\phi d$, $N_{sc}$) & """
     def get_status_str(slnd_str, limit):
         try:
             v = float(slnd_str)
-            return r"\textcolor{black}{PASS}" if v <= limit else r"\textcolor{red}{FAIL}"
+            return format_status_latex("PASS") if v <= limit else format_status_latex("FAIL")
         except (ValueError, TypeError):
             return ""
     cb_slenderness_rows = []
@@ -1628,9 +1634,9 @@ Cross bracing between adjacent plate girders provides lateral stability during c
 
 \vspace{0.4em}
 \noindent
-\setlength{\tabcolsep}{4pt}
-\setlength\LTleft{0pt}
-\setlength\LTright{\fill}
+\setlength{\tabcolsep}{""" + TABCOLSEP_COMPACT + r"""}
+\setlength\LTleft{""" + LT_LEFT_FLUSH + r"""}
+\setlength\LTright{""" + LT_RIGHT_DEFAULT + r"""}
 
 \begin{longtable}{|C{2.0cm}|L{2.0cm}|L{2.2cm}|C{2.5cm}|C{2.0cm}|C{2.0cm}|}
 \caption{\textbf{Cross Bracing --- Connection and Section Properties}}\\
@@ -1687,9 +1693,9 @@ End diaphragms at the supports transfer transverse loads to the bearings, restra
 
 \vspace{0.4em}
 \noindent
-\setlength{\tabcolsep}{4pt}
-\setlength{\LTleft}{0pt}
-\setlength{\LTright}{\fill}
+\setlength{\tabcolsep}{""" + TABCOLSEP_COMPACT + r"""}
+\setlength{\LTleft}{""" + LT_LEFT_FLUSH + r"""}
+\setlength{\LTright}{""" + LT_RIGHT_DEFAULT + r"""}
 
 \begin{longtable}{|C{2.0cm}|L{2.0cm}|L{2.2cm}|C{2.5cm}|C{2.0cm}|C{2.0cm}|}
 \caption{\textbf{End Diaphragm --- Connection and Section Properties}}\\

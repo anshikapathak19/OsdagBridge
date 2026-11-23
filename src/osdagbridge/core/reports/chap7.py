@@ -1,3 +1,10 @@
+from osdagbridge.core.reports.report_style import (
+    TABCOLSEP_TIGHT,
+    FIG_WIDTH_CHART,
+    FIG_VSPACE_CHART_TOP,
+)
+
+
 def ch7_quantities(input_dict, fig_paths=None):
     def _mat_chart_fig(path_key, caption_title, label):
         path = (fig_paths or {}).get(path_key)
@@ -7,8 +14,8 @@ def ch7_quantities(input_dict, fig_paths=None):
             return (
                 r"\begin{figure}[H]" + "\n"
                 r"\centering" + "\n"
-                r"\vspace{2pt}" + "\n"
-                r"\includegraphics[width=0.78\textwidth]{" + p + r"}" + "\n"
+                r"\vspace{" + FIG_VSPACE_CHART_TOP + r"}" + "\n"
+                r"\includegraphics[width=" + FIG_WIDTH_CHART + r"]{" + p + r"}" + "\n"
                 r"\caption{\textbf{" + caption_title + r"}}" + "\n"
                 + label_tex
                 + r"\end{figure}" + "\n"
@@ -42,7 +49,7 @@ The following bar charts summarize the primary material quantities required for 
 \noindent\textbf{Table 7.1  Bill of Materials (Steel, Concrete, and Reinforcement Quantities)}
 
 \begingroup
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{""" + TABCOLSEP_TIGHT + r"""}
 \begin{longtable}{|C{1.0cm}|L{3.8cm}|C{2.6cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|}
 \hline
 \textbf{S.N.} & \textbf{Item Description} & \textbf{Volume} & \textbf{Quantity} & \textbf{Total Volume} & \textbf{Weight (MT)} & \textbf{Total Weight (MT)} \\

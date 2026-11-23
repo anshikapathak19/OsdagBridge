@@ -4,6 +4,17 @@ from osdagbridge.core.utils.common import (
     KEY_MP_GIRDER_DEPTH,
     KEY_TS_NO_OF_GIRDERS
 )
+from osdagbridge.core.reports.report_style import (
+    FIG_WIDTH_DEFAULT,
+    FIG_WIDTH_FULL,
+    FIG_PLACEHOLDER_WIDTH,
+    FIG_VSPACE_TOP,
+    FIG_VSPACE_CAPTION,
+    FIG_VSPACE_BOTTOM,
+    ROW_BREAK_DEFAULT,
+    ROW_BREAK_NOBREAK,
+    ROW_BREAK_SPACE,
+)
 
 
 def _tex(value):
@@ -29,6 +40,10 @@ def _render_value(source_dict, key, unit=""):
     val = source_dict.get(key)
     if val in ("", None):
         return ""
+    val_str = str(val).strip()
+    unit_clean = unit.strip()
+    if unit_clean and (val_str.endswith(unit_clean) or val_str.endswith(unit)):
+        return _tex(val)
     return _tex(val) + unit
 
 
@@ -73,7 +88,7 @@ def get_girder_entries(input_dict):
     return entries
 
 
-def _fig_or_placeholder(path, caption, width=r'0.9\textwidth'):
+def _fig_or_placeholder(path, caption, width=FIG_WIDTH_DEFAULT):
     """Embed figure if path is provided (file already copied to assets), else show placeholder box.
     path is the relative path as pdflatex will see it (e.g. 'assets/plan.png').
     """
@@ -86,13 +101,13 @@ def _fig_or_placeholder(path, caption, width=r'0.9\textwidth'):
                 r'\end{figure}')
     return (r'\begin{figure}[H]' + '\n'
             r'\centering' + '\n'
-            r'\fbox{\parbox{0.97\textwidth}{' + '\n'
+            r'\fbox{\parbox{' + FIG_PLACEHOLDER_WIDTH + '}{' + '\n'
             r'\textit{[ PLACEHOLDER: ' + caption + r' ]}' + '\n'
             r'}}' + '\n'
             r'\caption*{' + caption + '}\n'
             r'\end{figure}')
 
-def _fig_embed(path, caption, width=r'\textwidth', height=None):
+def _fig_embed(path, caption, width=FIG_WIDTH_FULL, height=None):
     """Embed a real figure when path is provided (already copied); otherwise use an fbox placeholder."""
     if path:
         p = path.replace('\\', '/')
@@ -100,15 +115,15 @@ def _fig_embed(path, caption, width=r'\textwidth', height=None):
         if height:
             opts += ',height=' + height + ',keepaspectratio'
         return (r'\begin{figure}[H]' + '\n'
-                r'\vspace{-0.5em}' + '\n'
+                r'\vspace{' + FIG_VSPACE_TOP + '}' + '\n'
                 r'\centering' + '\n'
                 r'\includegraphics[' + opts + ']{' + p + '}\n'
-                r'\vspace{0.5em}' + '\n'
+                r'\vspace{' + FIG_VSPACE_CAPTION + '}' + '\n'
                 r'\caption*{\small ' + caption + '}\n'
-                r'\vspace{-0.5em}' + '\n'
+                r'\vspace{' + FIG_VSPACE_BOTTOM + '}' + '\n'
                 r'\end{figure}')
     # fbox placeholder — matches template exactly
-    return (r'\noindent\fbox{\parbox{0.97\textwidth}{' + '\n'
+    return (r'\noindent\fbox{\parbox{' + FIG_PLACEHOLDER_WIDTH + '}{' + '\n'
             r'\textit{[ PLACEHOLDER: ' + caption + r' ]}' + '\n'
             r'}}')
 
@@ -195,12 +210,12 @@ def build_longtable(
     header_block = ""
     if headers:
         hdr_text = headers.strip()
-        if not hdr_text.endswith(r"\\") and not hdr_text.endswith(r"[6pt]"):
-            hdr_text += r" \\[6pt]"
+        if not hdr_text.endswith(r"\\") and not hdr_text.endswith(f"[{ROW_BREAK_SPACE}]"):
+            hdr_text += f" {ROW_BREAK_DEFAULT}"
 
         cont_hdr = continuation_headers.strip() if continuation_headers else hdr_text
-        if not cont_hdr.endswith(r"\\") and not cont_hdr.endswith(r"[6pt]"):
-            cont_hdr += r" \\[6pt]"
+        if not cont_hdr.endswith(r"\\") and not cont_hdr.endswith(f"[{ROW_BREAK_SPACE}]"):
+            cont_hdr += f" {ROW_BREAK_DEFAULT}"
 
         header_block = (
             f"{hdr_text}\n\\hline\n"
@@ -225,8 +240,8 @@ def build_longtable(
                 r_str = str(r).rstrip()
                 is_last = (idx == n_in_grp - 1)
                 if keep_groups_intact and not is_last:
-                    if r"\*[6pt]" not in r_str and r"\\[6pt]" in r_str:
-                        r_str = r_str.replace(r"\\[6pt]", r"\\*[6pt]")
+                    if ROW_BREAK_NOBREAK not in r_str and ROW_BREAK_DEFAULT in r_str:
+                        r_str = r_str.replace(ROW_BREAK_DEFAULT, ROW_BREAK_NOBREAK)
                     elif r"\\*" not in r_str and r"\\" in r_str:
                         r_str = r_str.replace(r"\\", r"\\*")
                 body_lines.append(r_str)

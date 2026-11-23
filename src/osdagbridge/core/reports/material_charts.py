@@ -17,6 +17,22 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from osdagbridge.core.reports.report_style import (
+    CHART_STEEL_BAR_COLORS,
+    CHART_STEEL_EDGE,
+    CHART_CONCRETE,
+    CHART_CONCRETE_EDGE,
+    CHART_CONCRETE_BADGE_BG,
+    CHART_REBAR,
+    CHART_REBAR_EDGE,
+    CHART_REBAR_BADGE_BG,
+    CHART_GRID_COLOR,
+    CHART_SPINE_COLOR,
+    CHART_TEXT_MUTED,
+    CHART_SUMMARY_BG,
+    CHART_SUMMARY_EDGE,
+)
+
 logger = logging.getLogger("osdagbridge.core.reports.material_charts")
 
 
@@ -110,11 +126,10 @@ def plot_steel_tonnage_chart(steel_data: Dict[str, Any], output_path: str) -> st
 
     fig, ax = plt.subplots(figsize=(7.8, 4.4), dpi=300)
 
-    colors = ["#1f4e78", "#2e75b6", "#5b9bd5"]
     bar_width = 0.42
     x_pos = np.arange(len(labels))
 
-    bars = ax.bar(x_pos, values, width=bar_width, color=colors, edgecolor="#0c2340", linewidth=1.0, zorder=3)
+    bars = ax.bar(x_pos, values, width=bar_width, color=CHART_STEEL_BAR_COLORS, edgecolor=CHART_STEEL_EDGE, linewidth=1.0, zorder=3)
 
     # Annotate bar values
     max_val = max(values) if values else 1.0
@@ -143,11 +158,11 @@ def plot_steel_tonnage_chart(steel_data: Dict[str, Any], output_path: str) -> st
     ax.set_ylim(0, y_upper)
 
     # Gridlines and styling
-    ax.grid(axis="y", linestyle="--", alpha=0.5, color="#c0c0c0", zorder=0)
+    ax.grid(axis="y", linestyle="--", alpha=0.5, color=CHART_GRID_COLOR, zorder=0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#666666")
-    ax.spines["bottom"].set_color("#666666")
+    ax.spines["left"].set_color(CHART_SPINE_COLOR)
+    ax.spines["bottom"].set_color(CHART_SPINE_COLOR)
 
     # Add summary box for total steel tonnage
     pct_g = (values[0] / total_wt * 100.0) if total_wt > 0 else 0.0
@@ -167,7 +182,7 @@ def plot_steel_tonnage_chart(steel_data: Dict[str, Any], output_path: str) -> st
         fontsize=9,
         verticalalignment="top",
         horizontalalignment="right",
-        bbox=dict(boxstyle="round,pad=0.5", facecolor="#f8f9fa", edgecolor="#b0bec5", linewidth=1.0),
+        bbox=dict(boxstyle="round,pad=0.5", facecolor=CHART_SUMMARY_BG, edgecolor=CHART_SUMMARY_EDGE, linewidth=1.0),
     )
 
     plt.tight_layout()
@@ -190,10 +205,10 @@ def plot_concrete_rebar_chart(concrete_vol: float, rebar_wt: float, output_path:
     fig, ax1 = plt.subplots(figsize=(7.8, 4.4), dpi=300)
     ax2 = ax1.twinx()
 
-    color_conc = "#2e7d32"
-    edge_conc = "#1b5e20"
-    color_rebar = "#c65102"
-    edge_rebar = "#8c3b00"
+    color_conc = CHART_CONCRETE
+    edge_conc = CHART_CONCRETE_EDGE
+    color_rebar = CHART_REBAR
+    edge_rebar = CHART_REBAR_EDGE
 
     bar_width = 0.38
 
@@ -220,11 +235,11 @@ def plot_concrete_rebar_chart(concrete_vol: float, rebar_wt: float, output_path:
     ax1.set_ylim(0, y_max1)
     ax1.set_ylabel(r"Concrete Volume ($\mathrm{m}^3$)", fontsize=11, fontweight="bold", color=color_conc)
     ax1.tick_params(axis="y", labelcolor=color_conc, labelsize=10)
-    ax1.grid(axis="y", linestyle="--", alpha=0.4, color="#c0c0c0", zorder=0)
+    ax1.grid(axis="y", linestyle="--", alpha=0.4, color=CHART_GRID_COLOR, zorder=0)
     ax1.spines["top"].set_visible(False)
     ax1.spines["left"].set_color(color_conc)
     ax1.spines["left"].set_linewidth(1.5)
-    ax1.spines["bottom"].set_color("#666666")
+    ax1.spines["bottom"].set_color(CHART_SPINE_COLOR)
 
     # ── Right Axis: Reinforcement Steel Weight ──
     y_max2 = max(rebar_wt * 1.20, 1.0)
@@ -263,7 +278,7 @@ def plot_concrete_rebar_chart(concrete_vol: float, rebar_wt: float, output_path:
         ha="center",
         va="center",
         fontsize=8.5,
-        bbox=dict(boxstyle="round,pad=0.4", facecolor="#f1f8e9", edgecolor=color_conc, alpha=0.9),
+        bbox=dict(boxstyle="round,pad=0.4", facecolor=CHART_CONCRETE_BADGE_BG, edgecolor=color_conc, alpha=0.9),
     )
     ax2.text(
         1,
@@ -272,7 +287,7 @@ def plot_concrete_rebar_chart(concrete_vol: float, rebar_wt: float, output_path:
         ha="center",
         va="center",
         fontsize=8.5,
-        bbox=dict(boxstyle="round,pad=0.4", facecolor="#fff3e0", edgecolor=color_rebar, alpha=0.9),
+        bbox=dict(boxstyle="round,pad=0.4", facecolor=CHART_REBAR_BADGE_BG, edgecolor=color_rebar, alpha=0.9),
     )
 
     ax1.set_title(
@@ -290,7 +305,7 @@ def plot_concrete_rebar_chart(concrete_vol: float, rebar_wt: float, output_path:
         ha="center",
         fontsize=8.5,
         fontstyle="italic",
-        color="#555555",
+        color=CHART_TEXT_MUTED,
     )
 
     plt.tight_layout()

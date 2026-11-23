@@ -60,6 +60,7 @@ from osdagbridge.core.utils.common import (
 )
 
 from osdagbridge.core.reports.report_utils import _tex, _render_value, build_longtable
+from osdagbridge.core.reports.report_style import TABCOLSEP_DENSE
 from osdagbridge.core.utils.codes.irc6_2017 import IRC6_2017
 
 def ch3_loads(input_dict):
@@ -574,7 +575,7 @@ This section summarizes all loads applied to the bridge and the load combination
 
 \vspace{1em}
 {\small
-\setlength{\tabcolsep}{2.5pt}
+\setlength{\tabcolsep}{""" + TABCOLSEP_DENSE + r"""}
 """ + t33_tex + r"""
 }
 

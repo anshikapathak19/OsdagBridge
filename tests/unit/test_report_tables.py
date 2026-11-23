@@ -530,6 +530,72 @@ def test_executive_summary_independent_component_statuses():
     assert 'Deck design pass' in tex_ed
 
 
+def test_ch4_reactions_table_populated():
+    """Verify Table 4.2 Reactions at Supports populates DL, SIDL, LL, and Factored rows."""
+    from osdagbridge.core.reports.chap4 import ch4_analysis
+    from osdagbridge.core.utils.common import KEY_SPAN, KEY_TS_NO_OF_GIRDERS
+
+    class MockBridge:
+        input_dict = {KEY_SPAN: 30.0, KEY_TS_NO_OF_GIRDERS: 4}
+        output_dict = {}
+
+    asum = {
+        "reactions": {
+            "1.0 DL": {"left_kN": -703.407, "right_kN": 703.407},
+            "1.0 DW": {"left_kN": -116.853, "right_kN": 116.853},
+            "1.0 DL + 1.0 LL": {"left_kN": -1192.027, "right_kN": 925.214},
+            "Envelope ULS": {"left_kN": -1308.880, "right_kN": 1042.068},
+        }
+    }
+
+    tex = ch4_analysis(asum, {}, MockBridge(), 30.0)
+    assert r"\caption{\textbf{Reactions at Supports}}" in tex
+    assert r"\textbf{Dead Load (DL)} & 703.41 kN & 703.41 kN \\[6pt]" in tex
+    assert r"\textbf{Superimposed Dead Load (SIDL)} & 116.85 kN & 116.85 kN \\[6pt]" in tex
+    assert r"\textbf{Live Load (LL)} & 488.62 kN & 221.81 kN \\[6pt]" in tex
+    assert r"\textbf{Total Design Reaction (Factored)} & 1308.88 kN & 1042.07 kN \\[6pt]" in tex
+
+    # Test fallback with empty reactions dictionary
+    tex_empty = ch4_analysis({}, {}, MockBridge(), 30.0)
+    assert r"\textbf{Dead Load (DL)} & N.A. & N.A. \\[6pt]" in tex_empty
+    assert r"\textbf{Superimposed Dead Load (SIDL)} & N.A. & N.A. \\[6pt]" in tex_empty
+    assert r"\textbf{Live Load (LL)} & N.A. & N.A. \\[6pt]" in tex_empty
+    assert r"\textbf{Total Design Reaction (Factored)} & N.A. & N.A. \\[6pt]" in tex_empty
+
+
+def test_executive_summary_units_and_render_value():
+    """Verify units are rendered for Girder Spacing and Deck Thickness without duplication."""
+    from osdagbridge.core.reports.report_utils import _render_value
+    from osdagbridge.core.reports.executive_summary import executive_summary
+    from osdagbridge.core.utils.common import (
+        KEY_SPAN,
+        KEY_TS_NO_OF_GIRDERS,
+        KEY_TS_GIRDER_SPACING,
+        KEY_TS_DECK_THICKNESS,
+    )
+
+    # 1. _render_value standalone checks
+    d_num = {"spacing": 2.1, "thickness": 250}
+    assert _render_value(d_num, "spacing", " m") == "2.1 m"
+    assert _render_value(d_num, "thickness", " mm") == "250 mm"
+
+    d_str_with_units = {"spacing": "2.1 m", "thickness": "250 mm"}
+    assert _render_value(d_str_with_units, "spacing", " m") == "2.1 m"
+    assert _render_value(d_str_with_units, "thickness", " mm") == "250 mm"
+
+    # 2. executive_summary table checks
+    inp = {
+        KEY_SPAN: 30.0,
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.1,
+        KEY_TS_DECK_THICKNESS: 250,
+    }
+    out = {}
+    tex = executive_summary(inp, out, {})
+    assert r"\textbf{Girder Spacing} & 2.1 m \\" in tex
+    assert r"\textbf{Deck Thickness} & 250 mm \\" in tex
+
+
 if __name__ == "__main__":
     import pathlib
     import tempfile
@@ -582,4 +648,12 @@ if __name__ == "__main__":
     test_executive_summary_independent_component_statuses()
     print("PASS: test_executive_summary_independent_component_statuses")
 
-    print("\nALL 12 TESTS PASSED SUCCESSFULLY!")
+    print("Running test_ch4_reactions_table_populated...")
+    test_ch4_reactions_table_populated()
+    print("PASS: test_ch4_reactions_table_populated")
+
+    print("Running test_executive_summary_units_and_render_value...")
+    test_executive_summary_units_and_render_value()
+    print("PASS: test_executive_summary_units_and_render_value")
+
+    print("\nALL 14 TESTS PASSED SUCCESSFULLY!")

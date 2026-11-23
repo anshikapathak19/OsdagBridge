@@ -119,6 +119,21 @@ from osdagbridge.core.utils.common import (
 )
 
 from osdagbridge.core.reports.report_utils import _tex
+from .report_style import (
+    PAGE_DOC_CLASS,
+    PAGE_FONT_SIZE,
+    PAGE_PAPER_SIZE,
+    PAGE_LINE_STRETCH,
+    get_geometry_setup,
+    get_caption_setup,
+    get_table_style_setup,
+    get_color_definitions,
+    get_fancypagestyles,
+    CHAPTER_TITLE_FORMAT,
+    CHAPTER_TITLE_SPACING_DEFAULT,
+    TOC_DEPTH,
+    format_status_latex,
+)
 from .executive_summary import executive_summary
 from .chap1 import ch1_project_info
 from .chap2 import ch2_input_parameters
@@ -152,148 +167,94 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
     jn = _tex(job_number)
     rd = _tex(report_date)
     rv = _tex(report_version)
-    return r"""
-\documentclass[12pt,a4paper]{report}
+    geometry_tex = get_geometry_setup()
+    caption_tex = get_caption_setup()
+    table_style_tex = get_table_style_setup()
+    colors_tex = get_color_definitions()
+    fancypages_tex = get_fancypagestyles(pn, jn, rd, rv)
+    return rf"""
+\documentclass[{PAGE_FONT_SIZE},{PAGE_PAPER_SIZE}]{{{PAGE_DOC_CLASS}}}
 
 % Packages
-\usepackage[
-  a4paper,
-  top=25mm,
-  bottom=30mm,
-  left=25mm,
-  right=25mm,
-  headheight=18pt,
-  headsep=14pt,
-  footskip=38pt
-]{geometry}
-\usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{tabularx}
-\usepackage{float}
-\usepackage{fancyhdr}
-\usepackage[hidelinks]{hyperref}
-\usepackage{xcolor}
-\usepackage{setspace}
-\usepackage{enumitem}
-\usepackage{caption}
+{geometry_tex}
+\usepackage{{graphicx}}
+\usepackage{{amsmath}}
+\usepackage{{amssymb}}
+\usepackage{{booktabs}}
+\usepackage{{array}}
+\usepackage{{tabularx}}
+\usepackage{{float}}
+\usepackage{{fancyhdr}}
+\usepackage[hidelinks]{{hyperref}}
+\usepackage{{xcolor}}
+\usepackage{{setspace}}
+\usepackage{{enumitem}}
+\usepackage{{caption}}
 
-\captionsetup{
-    labelfont=bf,
-    justification=raggedright,
-    singlelinecheck=false,
-    format=plain
-}
-\usepackage{subcaption}
-\usepackage{multirow}
-\usepackage{colortbl}
-\usepackage{longtable}
-\setlength{\LTleft}{\fill}
-\setlength{\LTright}{\fill}
-\usepackage{titlesec}
-\usepackage{titletoc}
-\usepackage{lastpage}
-\usepackage{makecell}
-\usepackage{etoolbox}
-\usepackage{needspace}
+{caption_tex}
+\usepackage{{subcaption}}
+\usepackage{{multirow}}
+\usepackage{{colortbl}}
+\usepackage{{longtable}}
+\usepackage{{titlesec}}
+\usepackage{{titletoc}}
+\usepackage{{lastpage}}
+\usepackage{{makecell}}
+\usepackage{{etoolbox}}
+\usepackage{{needspace}}
 
-\numberwithin{table}{chapter}
-\numberwithin{figure}{chapter}
-% Table layout and spacing: consistent padding, row height, and longtable pre/post skips
-\setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.12}
-\setlength{\LTpre}{0pt}
-\setlength{\LTpost}{4pt}
-% Table rules (outline thickness) and small extra row height for clarity
-\setlength{\arrayrulewidth}{0.5pt}
-\setlength{\extrarowheight}{0.6pt}
+\numberwithin{{table}}{{chapter}}
+\numberwithin{{figure}}{{chapter}}
+{table_style_tex}
 
 % Prevent floating tables from starting with less than 5 baselines:
-\BeforeBeginEnvironment{table}{\needspace{5\baselineskip}}
-% NOTE: Do NOT use \BeforeBeginEnvironment{longtable}{\needspace{...}} because
+\BeforeBeginEnvironment{{table}}{{\needspace{{5\baselineskip}}}}
+% NOTE: Do NOT use \BeforeBeginEnvironment{{longtable}}{{\needspace{{...}}}} because
 % needspace leaves negative vertical glue that corrupts longtable's \pagetotal,
 % causing phantom continuation headers to emit before the table caption.
 
 % Patch \@cline to preserve \nobreak inside longtable row groups when following \\*
 \makeatletter
-\def\@cline#1-#2\@nil{%
+\def\@cline#1-#2\@nil{{%
   \omit \@multicnt #1\advance \@multispan \m@ne
-  \ifnum \@multicnt =\@ne \@firstofone {&\omit }\fi
+  \ifnum \@multicnt =\@ne \@firstofone {{&\omit }}\fi
   \@multicnt #2\advance \@multicnt -#1\advance \@multispan \@ne
   \leaders \hrule \@height \arrayrulewidth \hfill
   \cr
-  \noalign {\nobreak\vskip -\arrayrulewidth }%
-}
+  \noalign {{\nobreak\vskip -\arrayrulewidth }}%
+}}
 \makeatother
 
 % Declare common Unicode mathematical characters safely for pdflatex
-\DeclareUnicodeCharacter{2264}{\ensuremath{\le}}
-\DeclareUnicodeCharacter{2265}{\ensuremath{\ge}}
+\DeclareUnicodeCharacter{{2264}}{{\ensuremath{{\le}}}}
+\DeclareUnicodeCharacter{{2265}}{{\ensuremath{{\ge}}}}
 
-\definecolor{osdagGreen}{HTML}{91B014}
+{colors_tex}
 
-\fancypagestyle{main}{
-  \fancyhf{}
-  \fancyhead[L]{""" + pn + r""" $|$ """ + jn + r"""}
-  \fancyhead[R]{""" + rd + r""" $|$ """ + rv + r"""}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
-  \renewcommand{\footrule}{%
-    \ifbool{hasSDonPage}{%
-      \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{3pt}%
-    }{}%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}%
-  }
-}
-\fancypagestyle{plain}{
-  \fancyhf{}
-  \fancyhead[L]{""" + pn + r""" $|$ """ + jn + r"""}
-  \fancyhead[R]{""" + rd + r""" $|$ """ + rv + r"""}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
-  \renewcommand{\footrule}{%
-    \ifbool{hasSDonPage}{%
-      \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{3pt}%
-    }{}%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}%
-  }
-}
-\fancypagestyle{firstpage}{
-  \fancyhf{}
-  \renewcommand{\headrulewidth}{0pt}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\footrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{4pt}}
-}
-\pagestyle{main}
-\setstretch{1.15}
+{fancypages_tex}
+\pagestyle{{main}}
+\setstretch{{{PAGE_LINE_STRETCH}}}
 
 % Custom Commands
-\newcommand{\placeholder}[1]{\textit{\textless #1\textgreater}}
-\newcommand{\todo}[1]{\colorbox{yellow}{TODO: #1}}
-\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
-\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcommand{{\placeholder}}[1]{{\textit{{\textless #1\textgreater}}}}
+\newcommand{{\todo}}[1]{{\colorbox{{yellow}}{{TODO: #1}}}}
+\newcolumntype{{L}}[1]{{>{{\raggedright\arraybackslash}}p{{#1}}}}
+\newcolumntype{{C}}[1]{{>{{\centering\arraybackslash}}p{{#1}}}}
+\newcolumntype{{R}}[1]{{>{{\raggedleft\arraybackslash}}p{{#1}}}}
 
 % Software-default asterisk
-\newcommand{\sdstar}{\textsuperscript{*}}
-\newbool{hasSDonPage}
-\boolfalse{hasSDonPage}
-\newcommand{\markSD}{\global\booltrue{hasSDonPage}}
-\renewcommand{\sdstar}{\textsuperscript{*}\markSD{}}
-\AddToHook{shipout/before}{\global\boolfalse{hasSDonPage}}
+\newcommand{{\sdstar}}{{\textsuperscript{{*}}}}
+\newbool{{hasSDonPage}}
+\boolfalse{{hasSDonPage}}
+\newcommand{{\markSD}}{{\global\booltrue{{hasSDonPage}}}}
+\renewcommand{{\sdstar}}{{\textsuperscript{{*}}\markSD{{}}}}
+\AddToHook{{shipout/before}}{{\global\boolfalse{{hasSDonPage}}}}
 
-\title{\Large\textbf{OsdagBridge} \\ \normalsize Open Source Software for Steel Girder Bridge Design \\ \vspace{2cm} \large Design Report}
-\author{}
-\date{}
+\title{{\Large\textbf{{OsdagBridge}} \\ \normalsize Open Source Software for Steel Girder Bridge Design \\ \vspace{{2cm}} \large Design Report}}
+\author{{}}
+\date{{}}
 
-\begin{document}
+\begin{{document}}
 """
 
 
@@ -364,34 +325,33 @@ def title_page(m, osdag_logo, org_logo):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def toc_section():
-    return r"""
+    return rf"""
 % Chapter / TOC Formatting
-\titleformat{\chapter}[block]
-  {\normalfont\Large\bfseries\centering}{\thechapter}{1em}{}
-\titlespacing*{\chapter}{0pt}{0pt}{10pt}
-\setcounter{tocdepth}{2}
+{CHAPTER_TITLE_FORMAT}
+{CHAPTER_TITLE_SPACING_DEFAULT}
+\setcounter{{tocdepth}}{{{TOC_DEPTH}}}
 
 % TOC styling using titletoc
-\titlecontents{chapter}[1.5em]
-  {\normalfont\vspace{2pt}}
-  {\contentslabel{1.5em}}
-  {\hspace*{-1.5em}}
-  {\hfill\contentspage}
+\titlecontents{{chapter}}[1.5em]
+  {{\normalfont\vspace{{2pt}}}}
+  {{\contentslabel{{1.5em}}}}
+  {{\hspace*{{-1.5em}}}}
+  {{\hfill\contentspage}}
 
-\titlecontents{section}[3.8em]
-  {\normalfont}
-  {\contentslabel{2.3em}}
-  {\hspace*{-2.3em}}
-  {\hfill\contentspage}
+\titlecontents{{section}}[3.8em]
+  {{\normalfont}}
+  {{\contentslabel{{2.3em}}}}
+  {{\hspace*{{-2.3em}}}}
+  {{\hfill\contentspage}}
 
-\titlecontents{subsection}[7.0em]
-  {\normalfont}
-  {\contentslabel{3.2em}}
-  {\hspace*{-3.2em}}
-  {\hfill\contentspage}
+\titlecontents{{subsection}}[7.0em]
+  {{\normalfont}}
+  {{\contentslabel{{3.2em}}}}
+  {{\hspace*{{-3.2em}}}}
+  {{\hfill\contentspage}}
 
 \newpage
-\renewcommand{\contentsname}{\centering\Large\bfseries Table of Contents}
+\renewcommand{{\contentsname}}{{\centering\Large\bfseries Table of Contents}}
 \tableofcontents
 """
 
@@ -613,8 +573,8 @@ class ReportDataBridge:
             if val is not None:
                 ur = float(val)
                 if ur <= 1.0:
-                    return r"\textcolor{black}{PASS}"
-                return r"\textcolor{red}{FAIL}"
+                    return format_status_latex("PASS")
+                return format_status_latex("FAIL")
         except (TypeError, ValueError):
             pass
         return ""

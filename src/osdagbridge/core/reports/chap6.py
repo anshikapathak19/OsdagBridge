@@ -1,3 +1,11 @@
+from osdagbridge.core.reports.report_style import (
+    FIG_WIDTH_PREVIEW,
+    FIG_WIDTH_MINIPAGE,
+    FIG_PLACEHOLDER_WIDTH,
+    FIG_VSPACE_DRAWING_TOP,
+)
+
+
 def ch6_drawings(fig_paths):
     """Chapter 6 – Drawings and Visualizations.
 
@@ -28,15 +36,15 @@ def ch6_drawings(fig_paths):
             p = path.replace('\\', '/')
             return (r'\begin{figure}[H]' + '\n'
                     r'\centering' + '\n'
-                    r'\vspace{4pt}' + '\n'
-                    r'\includegraphics[width=0.85\textwidth]{' + p + '}\n'
+                    r'\vspace{' + FIG_VSPACE_DRAWING_TOP + '}' + '\n'
+                    r'\includegraphics[width=' + FIG_WIDTH_PREVIEW + ']{' + p + '}\n'
                     r'\caption{' + title + '}\n'
                     + label_tex
                     + r'\end{figure}' + '\n'
                     )
         return (r'\begin{figure}[H]' + '\n'
                 r'\centering' + '\n'
-                r'\fbox{\parbox{0.97\textwidth}{' + '\n'
+                r'\fbox{\parbox{' + FIG_PLACEHOLDER_WIDTH + '}{' + '\n'
                 r'\textit{[ PLACEHOLDER: ' + ' ' + title + r' ]}' + '\n'
                 r'}}' + '\n'
                 r'\caption{' + title + '}\n'
@@ -59,7 +67,7 @@ def ch6_drawings(fig_paths):
             body = r'\includegraphics[width=\linewidth]{' + p + '}'
         else:
             body = r'\fbox{\parbox{0.95\linewidth}{\centering\textit{[ ' + title + r' ]}}}'
-        return (r'\begin{minipage}[t]{0.31\textwidth}' + '\n'
+        return (r'\begin{minipage}[t]{' + FIG_WIDTH_MINIPAGE + '}' + '\n'
                 r'\centering' + '\n'
                 + body + '\n'
                 r'\captionof{figure}{' + title + '}\n'
