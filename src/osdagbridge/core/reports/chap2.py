@@ -434,7 +434,7 @@ def _bracing_tables(input_dict, n_girders):
 + cb_rows
 + r"""\end{longtable}
 
-\vspace{0.8em}
+\vspace{0.6em}
 \setlength{\tabcolsep}{6pt}
 
 \begin{longtable}{|C{3.0cm}|C{3.5cm}|C{4.0cm}|C{5.0cm}|}
@@ -450,6 +450,7 @@ def _bracing_tables(input_dict, n_girders):
 """
 + ed_rows
 + r"""\end{longtable}
+\noindent\textit{Note: The member sections listed in the tables above represent preliminary trial input sections specified prior to analysis. Final design-optimised sections selected and verified per IS~800 and IRC~24 are presented in Section~\ref{sec:cross-bracing} and Section~\ref{sec:end-diaphragm}, and quantified in the Bill of Materials (Chapter~\ref{ch:material-takeoff}).}
 """)
 
 
@@ -459,7 +460,7 @@ def _shear_connector_table(input_dict, output_dict=None):
     return r"""
 \label{subsec:shear-connectors}
 
-\vspace{2.2em}
+\vspace{0.6em}
 
 \vspace{0.4em}
 \begin{longtable}{|L{5.5cm}|p{10.0cm}|}

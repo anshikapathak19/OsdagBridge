@@ -931,6 +931,14 @@ def generate_report(payload, request):
             except Exception as e:
                 logger.warning("Could not generate UR charts: %s", e)
 
+            # ── Requirement 5: Generate Material Quantity Bar Charts ──────
+            try:
+                from osdagbridge.core.reports.material_charts import generate_all_material_charts
+                mat_figs = generate_all_material_charts(payload.inputs, tmp_images)
+                fig_paths.update(mat_figs)
+            except Exception as e:
+                logger.warning("Could not generate material quantity charts: %s", e)
+
             doc_parts = []
             doc_parts.append(preamble(payload.metadata.project_name, payload.metadata.job_number, payload.metadata.report_date, payload.metadata.subtitle or 'Rev 0'))
             doc_parts.append(title_page(payload.metadata, osdag_logo_latex, org_logo_latex))
@@ -956,7 +964,7 @@ def generate_report(payload, request):
             if 'drawings' in secs and payload.options.include_figures:
                 doc_parts.append(ch6_drawings(fig_paths))
 
-            doc_parts.append(ch7_quantities(payload.inputs))
+            doc_parts.append(ch7_quantities(payload.inputs, fig_paths))
 
             mode = str(payload.inputs.get(KEY_DESIGN_MODE, "Optimized")).strip().lower()
             is_custom = mode in {"custom", "customized"}
